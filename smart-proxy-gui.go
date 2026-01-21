@@ -11,12 +11,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/getlantern/systray"
 )
 
 // Socket options for macOS
@@ -299,7 +303,7 @@ func (p *ProxyServer) handleConnection(client net.Conn) {
 		return
 	}
 	port := int(buf[0])<<8 | int(buf[1])
-	targetAddr := fmt.Sprintf("%s:%d", host, port)
+	targetAddr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
 	targetIface := p.selectIface(host)
 	p.mu.RLock()
@@ -329,9 +333,38 @@ func (p *ProxyServer) handleConnection(client net.Conn) {
 	client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); io.Copy(remote, client); if tcp, ok := remote.(*net.TCPConn); ok { tcp.CloseWrite() } }()
-	go func() { defer wg.Done(); io.Copy(client, remote); if tcp, ok := client.(*net.TCPConn); ok { tcp.CloseWrite() } }()
+	go func() {
+		defer wg.Done()
+		io.Copy(remote, client)
+		if tcp, ok := remote.(*net.TCPConn); ok {
+			tcp.CloseWrite()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(client, remote)
+		if tcp, ok := client.(*net.TCPConn); ok {
+			tcp.CloseWrite()
+		}
+	}()
 	wg.Wait()
+}
+
+func openBrowser(url string) {
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func main() {
@@ -514,7 +547,7 @@ func main() {
                 ['defaultIface', 'gfwIface', 'companyIface'].forEach(id => {
                     const sel = document.getElementById(id);
                     const currentVal = sel.value;
-                    sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => ` + "`" + `<option value="${i.name}">${i.name}</option>` + "`" + `).join('');
+                    sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => `+"`"+`<option value="${i.name}">${i.name}</option>`+"`"+`).join('');
                     if(currentVal) sel.value = currentVal;
                 });
 
@@ -555,7 +588,7 @@ func main() {
             try {
                 const status = await fetch('/api/status').then(r => r.json());
                 const port = status.port || 1080;
-                document.getElementById('statusBadge').innerHTML = status.running ? ` + "`" + `<span class="status-on">● Running (127.0.0.1:${port})</span>` + "`" + ` : '<span class="status-off">○ Stopped</span>';
+                document.getElementById('statusBadge').innerHTML = status.running ? `+"`"+`<span class="status-on">● Running (127.0.0.1:${port})</span>`+"`"+` : '<span class="status-off">○ Stopped</span>';
                 document.getElementById('btnStart').disabled = status.running;
                 document.getElementById('btnStop').disabled = !status.running;
                 
@@ -576,6 +609,31 @@ func main() {
 		`)
 	})
 
-	fmt.Printf("[*] GUI Console: http://127.0.0.1:%d\n", *guiPort)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", *guiPort), nil))
+	go func() {
+		fmt.Printf("[*] GUI Console: http://127.0.0.1:%d\n", *guiPort)
+		if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", *guiPort), nil); err != nil {
+			log.Printf("GUI server error: %v", err)
+		}
+	}()
+
+	systray.Run(func() {
+		systray.SetTitle("🚀")
+		systray.SetTooltip("Smart Proxy")
+		mOpen := systray.AddMenuItem("Open Configuration", "Open the configuration GUI")
+		systray.AddSeparator()
+		mQuit := systray.AddMenuItem("Quit", "Quit the application")
+
+		go func() {
+			for {
+				select {
+				case <-mOpen.ClickedCh:
+					openBrowser(fmt.Sprintf("http://127.0.0.1:%d", *guiPort))
+				case <-mQuit.ClickedCh:
+					systray.Quit()
+				}
+			}
+		}()
+	}, func() {
+		p.Stop()
+	})
 }
