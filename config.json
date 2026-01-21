@@ -1,0 +1,13 @@
+{
+  "port": 1080,
+  "defaultIface": "en0",
+  "gfwIface": "utun6",
+  "companyIface": "utun7",
+  "gfwlistUrl": "gfwlist.txt",
+  "companyDomains": [
+    "gitlab.amcax.net",
+    "qa.amcax.net"
+  ],
+  "extraGfwDomains": [],
+  "autoStart": true
+}
