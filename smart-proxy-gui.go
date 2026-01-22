@@ -37,6 +37,7 @@ type Config struct {
 	CompanyIface    string   `json:"companyIface"`
 	GFWListURL      string   `json:"gfwlistUrl"`
 	CompanyDomains  []string `json:"companyDomains"`
+	BypassDomains   []string `json:"bypassDomains"`
 	ExtraGFWDomains []string `json:"extraGfwDomains"`
 	AutoStart       bool     `json:"autoStart"`
 }
@@ -186,6 +187,18 @@ func (p *ProxyServer) isGFWDomain(host string) bool {
 	return false
 }
 
+func (p *ProxyServer) isBypassDomain(host string) bool {
+	host = strings.ToLower(host)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, domain := range p.Config.BypassDomains {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *ProxyServer) isCompanyDomain(host string) bool {
 	host = strings.ToLower(host)
 	p.mu.RLock()
@@ -200,6 +213,9 @@ func (p *ProxyServer) isCompanyDomain(host string) bool {
 
 func (p *ProxyServer) selectIface(host string) string {
 	if net.ParseIP(host) != nil {
+		return p.Config.DefaultIface
+	}
+	if p.isBypassDomain(host) {
 		return p.Config.DefaultIface
 	}
 	if p.isCompanyDomain(host) && p.Config.CompanyIface != "" {
@@ -374,6 +390,20 @@ func main() {
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		os.MkdirAll(configDir, 0755)
 	}
+
+	// Single instance check
+	lockFile := filepath.Join(configDir, "smart-proxy.lock")
+	lockFd, err := syscall.Open(lockFile, syscall.O_CREAT|syscall.O_RDWR, 0644)
+	if err != nil {
+		fmt.Printf("Error opening lock file: %v\n", err)
+		os.Exit(1)
+	}
+	if err := syscall.Flock(lockFd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		fmt.Println("Another instance of Smart Proxy is already running.")
+		os.Exit(0)
+	}
+	// Do not close lockFd here, let the OS close it when the process exits
+
 	defaultConfigPath := filepath.Join(configDir, "config.json")
 	configPath := flag.String("config", defaultConfigPath, "Path to config file")
 	flag.Parse()
@@ -512,6 +542,7 @@ func main() {
                     <div class="card-header fw-bold">Rules & Settings</div>
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">Company Domains</label><textarea id="companyDomains" class="form-control" rows="2" placeholder="e.g. company.com, internal.net"></textarea></div>
+                        <div class="mb-3"><label class="form-label">Bypass Domains (Direct)</label><textarea id="bypassDomains" class="form-control" rows="2" placeholder="e.g. example.com, local.dev"></textarea></div>
                         <div class="mb-3"><label class="form-label">Extra GFW Domains</label><textarea id="extraGfwDomains" class="form-control" rows="2" placeholder="e.g. gvt2.com, google.com"></textarea></div>
                         <div class="mb-3"><label class="form-label">GFWList URL/Path</label><input id="gfwlistUrl" class="form-control"></div>
                         <div class="form-check form-switch mt-3">
@@ -557,6 +588,7 @@ func main() {
                 document.getElementById('gfwIface').value = config.gfwIface || '';
                 document.getElementById('companyIface').value = config.companyIface || '';
                 document.getElementById('companyDomains').value = (config.companyDomains || []).join(', ');
+                document.getElementById('bypassDomains').value = (config.bypassDomains || []).join(', ');
                 document.getElementById('extraGfwDomains').value = (config.extraGfwDomains || []).join(', ');
                 document.getElementById('gfwlistUrl').value = config.gfwlistUrl || '';
                 document.getElementById('autoStart').checked = config.autoStart;
@@ -570,6 +602,7 @@ func main() {
                 gfwIface: document.getElementById('gfwIface').value,
                 companyIface: document.getElementById('companyIface').value,
                 companyDomains: document.getElementById('companyDomains').value.split(',').map(s => s.trim()).filter(s => s),
+                bypassDomains: document.getElementById('bypassDomains').value.split(',').map(s => s.trim()).filter(s => s),
                 extraGfwDomains: document.getElementById('extraGfwDomains').value.split(',').map(s => s.trim()).filter(s => s),
                 gfwlistUrl: document.getElementById('gfwlistUrl').value,
                 autoStart: document.getElementById('autoStart').checked
@@ -635,5 +668,7 @@ func main() {
 		}()
 	}, func() {
 		p.Stop()
+		syscall.Close(lockFd)
+		os.Remove(lockFile)
 	})
 }

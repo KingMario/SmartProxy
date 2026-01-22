@@ -8,6 +8,7 @@
     "gitlab.amcax.net",
     "qa.amcax.net"
   ],
+  "bypassDomains": [],
   "extraGfwDomains": [],
   "autoStart": true
 }
