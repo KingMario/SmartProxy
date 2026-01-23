@@ -53,6 +53,7 @@ type ProxyServer struct {
 	logBuffer    []string
 	logMu        sync.Mutex
 	configPath   string
+	onStatusChange func(running bool)
 }
 
 func (p *ProxyServer) addLog(msg string) {
@@ -256,6 +257,10 @@ func (p *ProxyServer) Start() error {
 	p.running = true
 	p.mu.Unlock()
 
+	if p.onStatusChange != nil {
+		p.onStatusChange(true)
+	}
+
 	p.loadGFWList()
 	p.addLog(fmt.Sprintf("SOCKS5 Proxy started on 127.0.0.1:%d", p.Config.Port))
 
@@ -271,6 +276,12 @@ func (p *ProxyServer) Start() error {
 	return nil
 }
 
+func (p *ProxyServer) IsRunning() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.running
+}
+
 func (p *ProxyServer) Stop() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -279,6 +290,9 @@ func (p *ProxyServer) Stop() {
 		p.listener = nil
 	}
 	p.running = false
+	if p.onStatusChange != nil {
+		p.onStatusChange(false)
+	}
 	p.addLog("Proxy server stopped")
 }
 
@@ -674,13 +688,38 @@ func main() {
 	systray.Run(func() {
 		systray.SetTitle("🚀")
 		systray.SetTooltip("Smart Proxy")
+
+		mStart := systray.AddMenuItem("Start Proxy", "Start the proxy server")
+		mStop := systray.AddMenuItem("Stop Proxy", "Stop the proxy server")
+		systray.AddSeparator()
 		mOpen := systray.AddMenuItem("Open Configuration", "Open the configuration GUI")
 		systray.AddSeparator()
 		mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
+		updateMenu := func(running bool) {
+			if running {
+				mStart.Disable()
+				mStop.Enable()
+				systray.SetTooltip("Smart Proxy: Running")
+			} else {
+				mStart.Enable()
+				mStop.Disable()
+				systray.SetTooltip("Smart Proxy: Stopped")
+			}
+		}
+
+		p.onStatusChange = updateMenu
+		updateMenu(p.IsRunning())
+
 		go func() {
 			for {
 				select {
+				case <-mStart.ClickedCh:
+					if err := p.Start(); err != nil {
+						log.Printf("Error starting proxy: %v", err)
+					}
+				case <-mStop.ClickedCh:
+					p.Stop()
 				case <-mOpen.ClickedCh:
 					openBrowser(fmt.Sprintf("http://127.0.0.1:%d", *guiPort))
 				case <-mQuit.ClickedCh:
