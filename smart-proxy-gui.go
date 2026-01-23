@@ -398,7 +398,7 @@ func openBrowser(url string) {
 }
 
 func main() {
-	guiPort := flag.Int("gui-port", 10086, "Port for GUI console")
+	guiPort := flag.Int("gui-port", 0, "Port for GUI console (0 for random)")
 	home, _ := os.UserHomeDir()
 	configDir := filepath.Join(home, ".smart-proxy")
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
@@ -678,9 +678,16 @@ func main() {
 		`)
 	})
 
+	// Start GUI server
+	guiListener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *guiPort))
+	if err != nil {
+		log.Fatalf("Failed to start GUI server: %v", err)
+	}
+	*guiPort = guiListener.Addr().(*net.TCPAddr).Port
+	fmt.Printf("[*] GUI Console: http://127.0.0.1:%d\n", *guiPort)
+
 	go func() {
-		fmt.Printf("[*] GUI Console: http://127.0.0.1:%d\n", *guiPort)
-		if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", *guiPort), nil); err != nil {
+		if err := http.Serve(guiListener, nil); err != nil {
 			log.Printf("GUI server error: %v", err)
 		}
 	}()
