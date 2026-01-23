@@ -511,6 +511,7 @@ func main() {
     <meta charset="UTF-8">
     <title>Smart Proxy Control Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body { background: #f8f9fa; padding: 20px; font-family: sans-serif; }
         .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -522,7 +523,14 @@ func main() {
 <body>
     <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center my-4">
-            <h2>🚀 Smart Proxy</h2>
+            <div class="d-flex align-items-center gap-3">
+                <h2 class="mb-0">🚀 Smart Proxy</h2>
+                <div class="btn-group">
+                    <button id="btnStart" class="btn btn-sm btn-outline-primary" onclick="control('start')" title="Start"><i class="bi bi-play-fill"></i></button>
+                    <button id="btnStop" class="btn btn-sm btn-outline-danger" onclick="control('stop')" title="Stop"><i class="bi bi-stop-fill"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="saveConfig()" title="Save"><i class="bi bi-save"></i></button>
+                </div>
+            </div>
             <div id="statusBadge"></div>
         </div>
 
@@ -551,12 +559,6 @@ func main() {
                         </div>
                     </div>
                 </div>
-                
-                <div class="d-grid gap-2 mb-4">
-                    <button id="btnStart" class="btn btn-primary btn-lg" onclick="control('start')">Start Proxy</button>
-                    <button id="btnStop" class="btn btn-danger btn-lg" onclick="control('stop')">Stop Proxy</button>
-                    <button class="btn btn-outline-secondary" onclick="saveConfig()">Save Configuration</button>
-                </div>
             </div>
 
             <div class="col-lg-7 col-md-12">
@@ -569,8 +571,20 @@ func main() {
                 </div>
             </div>
         </div>
+
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            <div id="liveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        Configuration saved successfully!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         async function loadData() {
             try {
@@ -608,7 +622,8 @@ func main() {
                 autoStart: document.getElementById('autoStart').checked
             };
             await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
-            alert('Configuration saved');
+            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+            toast.show();
         }
 
         async function control(action) {
@@ -633,6 +648,13 @@ func main() {
                 }
             } catch(e) {}
         }
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                e.preventDefault();
+                saveConfig();
+            }
+        });
 
         loadData();
         setInterval(updateStatus, 1000);
