@@ -228,6 +228,113 @@ func (p *ProxyServer) selectIface(host string) string {
 	return p.Config.DefaultIface
 }
 
+func (p *ProxyServer) AutoDetectGFWIface() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		p.addLog(fmt.Sprintf("Failed to list interfaces: %v", err))
+		return ""
+	}
+
+	for _, iface := range ifaces {
+		// Skip loopback, down interfaces
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		idx, ip, err := getInterfaceInfo(iface.Name)
+		if err != nil || ip == "" {
+			continue
+		}
+
+		p.addLog(fmt.Sprintf("Testing interface %s (%s)...", iface.Name, ip))
+
+		dialer := &net.Dialer{
+			Timeout: 3 * time.Second,
+			Control: func(network, address string, c syscall.RawConn) error {
+				return c.Control(func(fd uintptr) {
+					if strings.Contains(network, "tcp6") {
+						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, idx)
+					} else {
+						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, idx)
+					}
+				})
+			},
+		}
+
+		conn, err := dialer.Dial("tcp", "www.google.com:80")
+		if err == nil {
+			conn.Close()
+			p.addLog(fmt.Sprintf("Interface %s is working for GFW", iface.Name))
+			return iface.Name
+		}
+		p.addLog(fmt.Sprintf("Interface %s failed: %v", iface.Name, err))
+	}
+
+	p.addLog("No interface can reach www.google.com, setting GFW Interface to None")
+	return ""
+}
+
+func (p *ProxyServer) AutoDetectCompanyIface() string {
+	p.mu.RLock()
+	if len(p.Config.CompanyDomains) == 0 {
+		p.mu.RUnlock()
+		p.addLog("No Company Domains configured, cannot detect Company Interface")
+		return ""
+	}
+	targetDomain := p.Config.CompanyDomains[0]
+	p.mu.RUnlock()
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		p.addLog(fmt.Sprintf("Failed to list interfaces: %v", err))
+		return ""
+	}
+
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		idx, ip, err := getInterfaceInfo(iface.Name)
+		if err != nil || ip == "" {
+			continue
+		}
+
+		p.addLog(fmt.Sprintf("Testing interface %s (%s) for company domain %s...", iface.Name, ip, targetDomain))
+
+		dialer := &net.Dialer{
+			Timeout: 3 * time.Second,
+			Control: func(network, address string, c syscall.RawConn) error {
+				return c.Control(func(fd uintptr) {
+					if strings.Contains(network, "tcp6") {
+						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, idx)
+					} else {
+						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, idx)
+					}
+				})
+			},
+		}
+
+		conn, err := dialer.Dial("tcp", net.JoinHostPort(targetDomain, "80"))
+		if err == nil {
+			conn.Close()
+			p.addLog(fmt.Sprintf("Interface %s is working for Company VPN", iface.Name))
+			return iface.Name
+		}
+		// Also try 443
+		conn, err = dialer.Dial("tcp", net.JoinHostPort(targetDomain, "443"))
+		if err == nil {
+			conn.Close()
+			p.addLog(fmt.Sprintf("Interface %s is working for Company VPN", iface.Name))
+			return iface.Name
+		}
+		p.addLog(fmt.Sprintf("Interface %s failed for %s: %v", iface.Name, targetDomain, err))
+	}
+
+	p.addLog(fmt.Sprintf("No interface can reach %s, setting Company Interface to None", targetDomain))
+	return ""
+}
+
 func (p *ProxyServer) Start() error {
 	p.mu.Lock()
 	if p.running {
@@ -516,6 +623,24 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	http.HandleFunc("/api/autodetect-gfw", func(w http.ResponseWriter, r *http.Request) {
+		iface := p.AutoDetectGFWIface()
+		p.mu.Lock()
+		p.Config.GFWIface = iface
+		p.mu.Unlock()
+		p.saveConfig()
+		json.NewEncoder(w).Encode(map[string]string{"iface": iface})
+	})
+
+	http.HandleFunc("/api/autodetect-company", func(w http.ResponseWriter, r *http.Request) {
+		iface := p.AutoDetectCompanyIface()
+		p.mu.Lock()
+		p.Config.CompanyIface = iface
+		p.mu.Unlock()
+		p.saveConfig()
+		json.NewEncoder(w).Encode(map[string]string{"iface": iface})
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, `
@@ -555,8 +680,20 @@ func main() {
                     <div class="card-body">
                         <div class="mb-3"><label class="form-label">SOCKS5 Port</label><input type="number" id="proxyPort" class="form-control"></div>
                         <div class="mb-3"><label class="form-label">Default Interface</label><select id="defaultIface" class="form-select"></select></div>
-                        <div class="mb-3"><label class="form-label">GFW Interface (Personal VPN)</label><select id="gfwIface" class="form-select"></select></div>
-                        <div class="mb-3"><label class="form-label">Company Interface (Company VPN)</label><select id="companyIface" class="form-select"></select></div>
+                        <div class="mb-3">
+                            <label class="form-label">GFW Interface (Personal VPN)</label>
+                            <div class="input-group">
+                                <select id="gfwIface" class="form-select"></select>
+                                <button class="btn btn-outline-secondary" type="button" onclick="autoDetectGFW()" title="Auto Detect"><i class="bi bi-search"></i> Detect</button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Company Interface (Company VPN)</label>
+                            <div class="input-group">
+                                <select id="companyIface" class="form-select"></select>
+                                <button class="btn btn-outline-secondary" type="button" onclick="autoDetectCompany()" title="Auto Detect"><i class="bi bi-search"></i> Detect</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -643,6 +780,40 @@ func main() {
         async function control(action) {
             await fetch('/api/' + action, { method: 'POST' });
             updateStatus();
+        }
+
+        async function autoDetectGFW() {
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+            try {
+                const res = await fetch('/api/autodetect-gfw', { method: 'POST' }).then(r => r.json());
+                document.getElementById('gfwIface').value = res.iface || '';
+                const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+                document.querySelector('#liveToast .toast-body').innerText = res.iface ? `+"`"+`Auto-detected GFW Interface: ${res.iface}`+"`"+` : 'No working GFW interface found.';
+                toast.show();
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        async function autoDetectCompany() {
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+            try {
+                const res = await fetch('/api/autodetect-company', { method: 'POST' }).then(r => r.json());
+                document.getElementById('companyIface').value = res.iface || '';
+                const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+                document.querySelector('#liveToast .toast-body').innerText = res.iface ? `+"`"+`Auto-detected Company Interface: ${res.iface}`+"`"+` : 'No working Company interface found.';
+                toast.show();
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
         }
 
         let lastLogCount = 0;
