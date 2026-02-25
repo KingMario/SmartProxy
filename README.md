@@ -1,6 +1,6 @@
 # 🚀 SmartProxy
 
-**SmartProxy** is a macOS-exclusive network utility designed to solve the complexity of managing multiple network environments simultaneously. It acts as an intelligent router that sits between your applications and your various network interfaces (Company VPN, Personal VPN/GFW, and Direct/Local), allowing seamless access to all resources without manual switching.
+**SmartProxy** is a cross-platform network utility (macOS + Windows) designed to solve the complexity of managing multiple network environments simultaneously. It acts as an intelligent router that sits between your applications and your various network interfaces (Company VPN, Personal VPN/GFW, and Direct/Local), allowing seamless access to all resources without manual switching.
 
 ## 🌟 Key Features
 
@@ -10,7 +10,7 @@
     *   **Direct/Bypass**: Keeps local and regular traffic on your default interface for maximum speed.
 *   **Modern Web GUI**: A clean, responsive Bootstrap-based control panel to manage settings and view real-time logs.
 *   **System Tray Integration**:
-    *   Quick "Start/Stop" controls from the macOS menu bar.
+    *   Quick "Start/Stop" controls from the system tray.
     *   One-click access to the configuration page.
     *   Visual status indicator (🚀).
 *   **Zero-Conflict Architecture**:
@@ -24,8 +24,8 @@
 ## 🛠 Installation & Build
 
 ### Prerequisites
-*   macOS (Darwin)
 *   Go 1.21+
+*   macOS (for `.app` bundle) or Windows (for `.exe`)
 
 ### Building from Source
 
@@ -35,17 +35,62 @@
     cd SmartProxy
     ```
 
-2.  Build the application bundle:
+2.  Build the macOS application bundle:
     ```bash
     ./build.sh
     ```
     This will create/update `SmartProxy.app` in the current directory.
 
+### Build for Windows
+
+Use one of the following methods:
+
+1.  Via script:
+    ```bash
+    ./build-windows.sh
+    ```
+
+2.  Or direct Go command:
+    ```bash
+    GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o SmartProxy.exe .
+    ```
+
+This will generate `SmartProxy.exe` (no console window) with the same core proxy + tray + web control panel workflow.
+
+### Build All Targets
+
+Use one command to build all available targets:
+
+```bash
+./build-all.sh
+```
+
+Output behavior:
+*   Always builds:
+    *   `SmartProxy.exe` (Windows GUI, no console)
+*   Builds `SmartProxy.app` only when running on a macOS host; on Linux/Windows hosts it is skipped with a message.
+
+### Build Windows Installer
+
+To generate an installer (`SmartProxy-Installer.exe`), use Inno Setup on a Windows machine.
+
+1. Install **Inno Setup 6**.
+2. In the project root, run:
+   ```bat
+   build-installer.bat
+   ```
+
+Generated file:
+*   `dist\windows\SmartProxy-Installer.exe`
+
+Installer script location:
+*   `installer/windows/SmartProxy.iss`
+
 ## 📖 Usage
 
-1.  **Launch the App**: Double-click `SmartProxy.app` or run it from the terminal.
+1.  **Launch the App**: On macOS, open `SmartProxy.app`; on Windows, run `SmartProxy.exe`.
 2.  **Open Configuration**:
-    *   Click the 🚀 icon in the menu bar and select **Open Configuration**.
+    *   Click the 🚀 icon in the system tray and select **Open Configuration**.
     *   Or, check the logs for the GUI URL (e.g., `http://127.0.0.1:54321`).
 3.  **Setup Interfaces**:
     *   **Default Interface**: Your main internet connection (e.g., `en0`).

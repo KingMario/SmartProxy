@@ -23,12 +23,6 @@ import (
 	"github.com/getlantern/systray"
 )
 
-// Socket options for macOS
-const (
-	IP_BOUND_IF   = 0x19
-	IPV6_BOUND_IF = 0x7D
-)
-
 // Config represents the proxy configuration
 type Config struct {
 	Port            int      `json:"port"`
@@ -252,11 +246,7 @@ func (p *ProxyServer) AutoDetectGFWIface() string {
 			Timeout: 3 * time.Second,
 			Control: func(network, address string, c syscall.RawConn) error {
 				return c.Control(func(fd uintptr) {
-					if strings.Contains(network, "tcp6") {
-						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, idx)
-					} else {
-						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, idx)
-					}
+					bindSocketToInterface(fd, network, idx)
 				})
 			},
 		}
@@ -306,11 +296,7 @@ func (p *ProxyServer) AutoDetectCompanyIface() string {
 			Timeout: 3 * time.Second,
 			Control: func(network, address string, c syscall.RawConn) error {
 				return c.Control(func(fd uintptr) {
-					if strings.Contains(network, "tcp6") {
-						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, idx)
-					} else {
-						syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, idx)
-					}
+					bindSocketToInterface(fd, network, idx)
 				})
 			},
 		}
@@ -452,11 +438,7 @@ func (p *ProxyServer) handleConnection(client net.Conn) {
 		LocalAddr: &net.TCPAddr{IP: net.ParseIP(localIP)},
 		Control: func(network, address string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
-				if strings.Contains(network, "tcp6") {
-					syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, ifIndex)
-				} else {
-					syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, ifIndex)
-				}
+				bindSocketToInterface(fd, network, ifIndex)
 			})
 		},
 	}
@@ -514,16 +496,15 @@ func main() {
 
 	// Single instance check
 	lockFile := filepath.Join(configDir, "smart-proxy.lock")
-	lockFd, err := syscall.Open(lockFile, syscall.O_CREAT|syscall.O_RDWR, 0644)
+	releaseLock, err := acquireInstanceLock(lockFile)
 	if err != nil {
-		fmt.Printf("Error opening lock file: %v\n", err)
+		if err == ErrAlreadyRunning {
+			fmt.Println("Another instance of Smart Proxy is already running.")
+			os.Exit(0)
+		}
+		fmt.Printf("Error acquiring lock file: %v\n", err)
 		os.Exit(1)
 	}
-	if err := syscall.Flock(lockFd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		fmt.Println("Another instance of Smart Proxy is already running.")
-		os.Exit(0)
-	}
-	// Do not close lockFd here, let the OS close it when the process exits
 
 	defaultConfigPath := filepath.Join(configDir, "config.json")
 	configPath := flag.String("config", defaultConfigPath, "Path to config file")
@@ -864,6 +845,7 @@ func main() {
 	}()
 
 	systray.Run(func() {
+		setPlatformTrayIcon()
 		systray.SetTitle("🚀")
 		systray.SetTooltip("Smart Proxy")
 
@@ -907,7 +889,6 @@ func main() {
 		}()
 	}, func() {
 		p.Stop()
-		syscall.Close(lockFd)
-		os.Remove(lockFile)
+		releaseLock()
 	})
 }

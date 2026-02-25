@@ -1,0 +1,6 @@
+# Build artifacts
+/dist/
+*.exe
+
+# OS/editor noise
+.DS_Store
