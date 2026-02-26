@@ -45,17 +45,22 @@
 
 Use one of the following methods:
 
-1.  Via script:
+1.  Via script (recommended):
     ```bash
     ./build-windows.sh
     ```
 
-2.  Or direct Go command:
+    This script automatically installs `github.com/akavel/rsrc`, embeds `assets/windows/tray.ico` into a temporary `SmartProxy.syso`, and then builds the Windows GUI binary with that icon.
+
+2.  Or direct Go command (manual icon embedding):
     ```bash
+    go install github.com/akavel/rsrc@v0.10.2
+    rsrc -ico assets/windows/tray.ico -o SmartProxy.syso
     GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o SmartProxy.exe .
+    rm -f SmartProxy.syso
     ```
 
-This will generate `SmartProxy.exe` (no console window) with the same core proxy + tray + web control panel workflow.
+This will generate `SmartProxy.exe` (no console window) with the same core proxy + tray + web control panel workflow, and includes the tray icon from `assets/windows/tray.ico`.
 
 ### Build All Targets
 
@@ -72,7 +77,11 @@ Output behavior:
 
 ### Build Windows Installer
 
-To generate an installer (`SmartProxy-Installer.exe`), use Inno Setup on a Windows machine.
+To generate an installer (`SmartProxy-Installer.exe`), make sure the prerequisites below are satisfied, then use Inno Setup on a Windows machine.
+
+#### Prerequisites
+*   `SmartProxy.exe` already exists (run `./build-windows.sh` first so the icon-embedded GUI binary is ready).
+*   **Inno Setup 6** installed and `ISCC` available in PATH (the script auto-detects `%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe`).
 
 1. Install **Inno Setup 6**.
 2. In the project root, run:

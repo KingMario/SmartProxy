@@ -4,12 +4,10 @@ setlocal
 set APP_NAME=SmartProxy
 set EXE_NAME=%APP_NAME%.exe
 
-echo [1/3] Building Windows GUI executable...
-set GOOS=windows
-set GOARCH=amd64
-go build -ldflags "-H=windowsgui" -o %EXE_NAME% .
-if errorlevel 1 (
-  echo Build failed.
+if exist "%EXE_NAME%" (
+  echo [1/3] Using existing %EXE_NAME% from prior build-windows output.
+) else (
+  echo [1/3] %EXE_NAME% not found; please run build-windows.sh first.
   exit /b 1
 )
 

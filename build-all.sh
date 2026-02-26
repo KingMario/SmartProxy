@@ -5,7 +5,7 @@ APP_NAME="SmartProxy"
 
 build_windows_gui() {
   echo "🚧 Building Windows GUI (no console) version..."
-  GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o "${APP_NAME}.exe" .
+  ./build-windows.sh
   echo "✅ Windows GUI build: ${APP_NAME}.exe"
 }
 
