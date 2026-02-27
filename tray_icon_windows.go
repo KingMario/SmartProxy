@@ -6,7 +6,7 @@ import _ "embed"
 
 import "github.com/getlantern/systray"
 
-//go:embed assets/windows/tray.ico
+//go:embed assets/tray.ico
 var windowsTrayIcon []byte
 
 func setPlatformTrayIcon() {

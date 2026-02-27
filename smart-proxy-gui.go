@@ -851,7 +851,6 @@ func main() {
 
 	systray.Run(func() {
 		setPlatformTrayIcon()
-		systray.SetTitle("🚀")
 		systray.SetTooltip("Smart Proxy")
 
 		mStart := systray.AddMenuItem("Start Proxy", "Start the proxy server")
