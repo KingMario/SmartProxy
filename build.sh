@@ -12,7 +12,7 @@ mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 
 # Build the binary
 # -o specifies the output path and name, effectively "renaming" it from the default
-go build -o "${BINARY_DEST}" smart-proxy-gui.go
+go build -o "${BINARY_DEST}" .
 
 if [ -f "${BINARY_DEST}" ]; then
     echo "✅ Build successful!"

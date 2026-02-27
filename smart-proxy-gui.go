@@ -718,16 +718,19 @@ func main() {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        async function refreshInterfaces() {
+            const ifaces = await fetch('/api/interfaces').then(r => r.json());
+            ['defaultIface', 'gfwIface', 'companyIface'].forEach(id => {
+                const sel = document.getElementById(id);
+                const currentVal = sel.value;
+                sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => ` + "`" + `<option value="${i.name}">${i.name}</option>` + "`" + `).join('');
+                if(currentVal) sel.value = currentVal;
+            });
+        }
+
         async function loadData() {
             try {
-                const ifaces = await fetch('/api/interfaces').then(r => r.json());
-                ['defaultIface', 'gfwIface', 'companyIface'].forEach(id => {
-                    const sel = document.getElementById(id);
-                    const currentVal = sel.value;
-                    sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => `+"`"+`<option value="${i.name}">${i.name}</option>`+"`"+`).join('');
-                    if(currentVal) sel.value = currentVal;
-                });
-
+                await refreshInterfaces();
                 const config = await fetch('/api/config').then(r => r.json());
                 document.getElementById('proxyPort').value = config.port || 1080;
                 document.getElementById('defaultIface').value = config.defaultIface || '';
@@ -769,10 +772,11 @@ func main() {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
             try {
+                await refreshInterfaces();
                 const res = await fetch('/api/autodetect-gfw', { method: 'POST' }).then(r => r.json());
                 document.getElementById('gfwIface').value = res.iface || '';
                 const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-                document.querySelector('#liveToast .toast-body').innerText = res.iface ? `+"`"+`Auto-detected GFW Interface: ${res.iface}`+"`"+` : 'No working GFW interface found.';
+                document.querySelector('#liveToast .toast-body').innerText = res.iface ? ` + "`" + `Auto-detected GFW Interface: ${res.iface}` + "`" + ` : 'No working GFW interface found.';
                 toast.show();
             } finally {
                 btn.disabled = false;
@@ -786,10 +790,11 @@ func main() {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
             try {
+                await refreshInterfaces();
                 const res = await fetch('/api/autodetect-company', { method: 'POST' }).then(r => r.json());
                 document.getElementById('companyIface').value = res.iface || '';
                 const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-                document.querySelector('#liveToast .toast-body').innerText = res.iface ? `+"`"+`Auto-detected Company Interface: ${res.iface}`+"`"+` : 'No working Company interface found.';
+                document.querySelector('#liveToast .toast-body').innerText = res.iface ? ` + "`" + `Auto-detected Company Interface: ${res.iface}` + "`" + ` : 'No working Company interface found.';
                 toast.show();
             } finally {
                 btn.disabled = false;
