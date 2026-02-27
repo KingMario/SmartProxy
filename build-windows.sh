@@ -5,7 +5,7 @@ APP_NAME="SmartProxy"
 OUT="${APP_NAME}.exe"
 GOOS_TARGET="windows"
 GOARCH_TARGET="amd64"
-ICON_SOURCE="assets/windows/tray.ico"
+ICON_SOURCE="assets/tray.ico"
 RESOURCE_FILE="${APP_NAME}.syso"
 
 export PATH="$(go env GOPATH)/bin:$PATH"

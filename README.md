@@ -50,17 +50,17 @@ Use one of the following methods:
     ./build-windows.sh
     ```
 
-    This script automatically installs `github.com/akavel/rsrc`, embeds `assets/windows/tray.ico` into a temporary `SmartProxy.syso`, and then builds the Windows GUI binary with that icon.
+    This script automatically installs `github.com/akavel/rsrc`, embeds `assets/tray.ico` into a temporary `SmartProxy.syso`, and then builds the Windows GUI binary with that icon.
 
 2.  Or direct Go command (manual icon embedding):
     ```bash
     go install github.com/akavel/rsrc@v0.10.2
-    rsrc -ico assets/windows/tray.ico -o SmartProxy.syso
+    rsrc -ico assets/tray.ico -o SmartProxy.syso
     GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui" -o SmartProxy.exe .
     rm -f SmartProxy.syso
     ```
 
-This will generate `SmartProxy.exe` (no console window) with the same core proxy + tray + web control panel workflow, and includes the tray icon from `assets/windows/tray.ico`.
+This will generate `SmartProxy.exe` (no console window) with the same core proxy + tray + web control panel workflow, and includes the tray icon from `assets/tray.ico`.
 
 ### Build All Targets
 
