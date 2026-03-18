@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -22,6 +24,11 @@ import (
 
 	"github.com/getlantern/systray"
 )
+
+//go:embed assets/*
+var embeddedAssets embed.FS
+
+// ...
 
 // Config represents the proxy configuration
 type Config struct {
@@ -622,6 +629,10 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"iface": iface})
 	})
 
+	// Serve static assets from embedded FS
+	subFS, _ := fs.Sub(embeddedAssets, "assets")
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(subFS))))
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, `
@@ -630,8 +641,8 @@ func main() {
 <head>
     <meta charset="UTF-8">
     <title>Smart Proxy Control Panel</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/assets/ui/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/ui/bootstrap-icons.css" rel="stylesheet">
     <style>
         body { background: #f8f9fa; padding: 20px; font-family: sans-serif; }
         .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -716,7 +727,7 @@ func main() {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/ui/bootstrap.bundle.min.js"></script>
     <script>
         async function refreshInterfaces() {
             const ifaces = await fetch('/api/interfaces').then(r => r.json());

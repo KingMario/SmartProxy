@@ -4,19 +4,25 @@ set -e
 APP_NAME="SmartProxy"
 APP_BUNDLE="${APP_NAME}.app"
 BINARY_DEST="${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
+RESOURCE_DIR="${APP_BUNDLE}/Contents/Resources"
 
 echo "🚧 Building ${APP_NAME}..."
 
-# Ensure the MacOS directory exists
+# Ensure directories exist
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+mkdir -p "${RESOURCE_DIR}"
 
-# Build the binary
-# -o specifies the output path and name, effectively "renaming" it from the default
+# Copy gfwlist.txt to Resources (since the app looks for it there)
+if [ -f "gfwlist.txt" ]; then
+    cp "gfwlist.txt" "${RESOURCE_DIR}/"
+fi
+
+# Build the binary (it will now include embedded assets)
 go build -o "${BINARY_DEST}" .
 
 if [ -f "${BINARY_DEST}" ]; then
     echo "✅ Build successful!"
-    echo "📂 Binary placed at: ${BINARY_DEST}"
+    echo "📂 App Bundle: ${APP_BUNDLE}"
     chmod +x "${BINARY_DEST}"
 else
     echo "❌ Build failed."
