@@ -44,16 +44,16 @@ type Config struct {
 }
 
 type ProxyServer struct {
-	Config       Config
-	GFWDomains   map[string]bool
-	IfaceIndices map[string]int
-	IfaceIPs     map[string]string
-	listener     net.Listener
-	running      bool
-	mu           sync.RWMutex
-	logBuffer    []string
-	logMu        sync.Mutex
-	configPath   string
+	Config         Config
+	GFWDomains     map[string]bool
+	IfaceIndices   map[string]int
+	IfaceIPs       map[string]string
+	listener       net.Listener
+	running        bool
+	mu             sync.RWMutex
+	logBuffer      []string
+	logMu          sync.Mutex
+	configPath     string
 	onStatusChange func(running bool)
 }
 
@@ -396,6 +396,25 @@ func (p *ProxyServer) Stop() {
 	p.addLog("Proxy server stopped")
 }
 
+func (p *ProxyServer) Restart() error {
+	wasRunning := p.IsRunning()
+	if wasRunning {
+		p.addLog("Restarting proxy server")
+		p.Stop()
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if err := p.Start(); err != nil {
+		return err
+	}
+
+	if wasRunning {
+		p.addLog("Proxy server restarted")
+	}
+
+	return nil
+}
+
 func (p *ProxyServer) handleConnection(client net.Conn) {
 	defer client.Close()
 	buf := make([]byte, 256)
@@ -611,6 +630,14 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	http.HandleFunc("/api/restart", func(w http.ResponseWriter, r *http.Request) {
+		if err := p.Restart(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
 	http.HandleFunc("/api/autodetect-gfw", func(w http.ResponseWriter, r *http.Request) {
 		iface := p.AutoDetectGFWIface()
 		p.mu.Lock()
@@ -658,6 +685,7 @@ func main() {
                 <h2 class="mb-0">🚀 Smart Proxy</h2>
                 <div class="btn-group">
                     <button id="btnStart" class="btn btn-sm btn-outline-primary" onclick="control('start')" title="Start"><i class="bi bi-play-fill"></i></button>
+                    <button id="btnRestart" class="btn btn-sm btn-outline-warning" onclick="control('restart')" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>
                     <button id="btnStop" class="btn btn-sm btn-outline-danger" onclick="control('stop')" title="Stop"><i class="bi bi-stop-fill"></i></button>
                     <button class="btn btn-sm btn-outline-secondary" onclick="saveConfig()" title="Save"><i class="bi bi-save"></i></button>
                 </div>
@@ -734,7 +762,7 @@ func main() {
             ['defaultIface', 'gfwIface', 'companyIface'].forEach(id => {
                 const sel = document.getElementById(id);
                 const currentVal = sel.value;
-                sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => ` + "`" + `<option value="${i.name}">${i.name}</option>` + "`" + `).join('');
+                sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => `+"`"+`<option value="${i.name}">${i.name}</option>`+"`"+`).join('');
                 if(currentVal) sel.value = currentVal;
             });
         }
@@ -755,6 +783,12 @@ func main() {
             } catch(e) { console.error("load error", e); }
         }
 
+        function showToast(message) {
+            document.querySelector('#liveToast .toast-body').innerText = message;
+            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+            toast.show();
+        }
+
         async function saveConfig() {
             const body = {
                 port: parseInt(document.getElementById('proxyPort').value),
@@ -768,8 +802,7 @@ func main() {
                 autoStart: document.getElementById('autoStart').checked
             };
             await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
-            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-            toast.show();
+			showToast('Configuration saved successfully!');
         }
 
         async function control(action) {
@@ -786,9 +819,7 @@ func main() {
                 await refreshInterfaces();
                 const res = await fetch('/api/autodetect-gfw', { method: 'POST' }).then(r => r.json());
                 document.getElementById('gfwIface').value = res.iface || '';
-                const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-                document.querySelector('#liveToast .toast-body').innerText = res.iface ? ` + "`" + `Auto-detected GFW Interface: ${res.iface}` + "`" + ` : 'No working GFW interface found.';
-                toast.show();
+                showToast(res.iface ? `+"`"+`Auto-detected GFW Interface: ${res.iface}`+"`"+` : 'No working GFW interface found.');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
@@ -804,9 +835,7 @@ func main() {
                 await refreshInterfaces();
                 const res = await fetch('/api/autodetect-company', { method: 'POST' }).then(r => r.json());
                 document.getElementById('companyIface').value = res.iface || '';
-                const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-                document.querySelector('#liveToast .toast-body').innerText = res.iface ? ` + "`" + `Auto-detected Company Interface: ${res.iface}` + "`" + ` : 'No working Company interface found.';
-                toast.show();
+                showToast(res.iface ? `+"`"+`Auto-detected Company Interface: ${res.iface}`+"`"+` : 'No working Company interface found.');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
@@ -820,6 +849,7 @@ func main() {
                 const port = status.port || 1080;
                 document.getElementById('statusBadge').innerHTML = status.running ? `+"`"+`<span class="status-on">● Running (127.0.0.1:${port})</span>`+"`"+` : '<span class="status-off">○ Stopped</span>';
                 document.getElementById('btnStart').disabled = status.running;
+                document.getElementById('btnRestart').disabled = !status.running;
                 document.getElementById('btnStop').disabled = !status.running;
                 
                 const logDiv = document.getElementById('log');
@@ -832,9 +862,15 @@ func main() {
         }
 
         document.addEventListener('keydown', function(e) {
-            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+			const key = e.key.toLowerCase();
+			if ((e.metaKey || e.ctrlKey) && key === 's') {
                 e.preventDefault();
                 saveConfig();
+				return;
+			}
+			if ((e.metaKey || e.ctrlKey) && key === 'r') {
+				e.preventDefault();
+				control('restart');
             }
         });
 
@@ -865,6 +901,7 @@ func main() {
 		systray.SetTooltip("Smart Proxy")
 
 		mStart := systray.AddMenuItem("Start Proxy", "Start the proxy server")
+		mRestart := systray.AddMenuItem("Restart Proxy", "Restart the proxy server")
 		mStop := systray.AddMenuItem("Stop Proxy", "Stop the proxy server")
 		systray.AddSeparator()
 		mOpen := systray.AddMenuItem("Open Configuration", "Open the configuration GUI")
@@ -874,10 +911,12 @@ func main() {
 		updateMenu := func(running bool) {
 			if running {
 				mStart.Disable()
+				mRestart.Enable()
 				mStop.Enable()
 				systray.SetTooltip("Smart Proxy: Running")
 			} else {
 				mStart.Enable()
+				mRestart.Disable()
 				mStop.Disable()
 				systray.SetTooltip("Smart Proxy: Stopped")
 			}
@@ -892,6 +931,10 @@ func main() {
 				case <-mStart.ClickedCh:
 					if err := p.Start(); err != nil {
 						log.Printf("Error starting proxy: %v", err)
+					}
+				case <-mRestart.ClickedCh:
+					if err := p.Restart(); err != nil {
+						log.Printf("Error restarting proxy: %v", err)
 					}
 				case <-mStop.ClickedCh:
 					p.Stop()
