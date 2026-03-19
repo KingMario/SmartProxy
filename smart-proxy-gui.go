@@ -41,6 +41,7 @@ type Config struct {
 	BypassDomains   []string `json:"bypassDomains"`
 	ExtraGFWDomains []string `json:"extraGfwDomains"`
 	AutoStart       bool     `json:"autoStart"`
+	HTTPProxyIface  string   `json:"httpProxyIface"`
 }
 
 type ProxyServer struct {
@@ -55,7 +56,13 @@ type ProxyServer struct {
 	logMu          sync.Mutex
 	configPath     string
 	onStatusChange func(running bool)
+	httpListener   net.Listener
+	httpProxyPort  int
+	httpIfaceIndex int
+	httpIfaceIP    string
 }
+
+const httpProxyPortConst = 17890
 
 func (p *ProxyServer) addLog(msg string) {
 	p.logMu.Lock()
@@ -328,6 +335,80 @@ func (p *ProxyServer) AutoDetectCompanyIface() string {
 	return ""
 }
 
+func (p *ProxyServer) refreshHTTPIfaceInfo() {
+	p.mu.RLock()
+	iface := p.Config.HTTPProxyIface
+	p.mu.RUnlock()
+
+	if iface == "" {
+		p.mu.Lock()
+		p.httpIfaceIndex = 0
+		p.httpIfaceIP = ""
+		p.mu.Unlock()
+		return
+	}
+
+	idx, ip, err := getInterfaceInfo(iface)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err != nil {
+		p.addLog(fmt.Sprintf("Failed to resolve HTTP proxy interface %s: %v", iface, err))
+		p.httpIfaceIndex = 0
+		p.httpIfaceIP = ""
+		return
+	}
+	p.httpIfaceIndex = idx
+	p.httpIfaceIP = ip
+}
+
+func (p *ProxyServer) dialHTTPRemote(addr string) (net.Conn, error) {
+	p.mu.RLock()
+	ifaceIdx := p.httpIfaceIndex
+	localIP := p.httpIfaceIP
+	p.mu.RUnlock()
+
+	dialer := &net.Dialer{
+		Timeout: 15 * time.Second,
+	}
+	if localIP != "" {
+		dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(localIP)}
+	}
+	if ifaceIdx != 0 {
+		dialer.Control = func(network, address string, c syscall.RawConn) error {
+			return c.Control(func(fd uintptr) {
+				bindSocketToInterface(fd, network, ifaceIdx)
+			})
+		}
+	}
+	return dialer.Dial("tcp", addr)
+}
+
+func (p *ProxyServer) startHTTPProxy() error {
+	p.refreshHTTPIfaceInfo()
+	addr := fmt.Sprintf("127.0.0.1:%d", httpProxyPortConst)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	p.mu.Lock()
+	p.httpListener = ln
+	p.httpProxyPort = httpProxyPortConst
+	p.mu.Unlock()
+	p.addLog(fmt.Sprintf("HTTP proxy started on 127.0.0.1:%d", p.httpProxyPort))
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				log.Printf("HTTP proxy accept error: %v", err)
+				return
+			}
+			go p.handleHTTPConnection(conn)
+		}
+	}()
+	return nil
+}
+
 func (p *ProxyServer) Start() error {
 	p.mu.Lock()
 	if p.running {
@@ -337,7 +418,7 @@ func (p *ProxyServer) Start() error {
 
 	p.IfaceIndices = make(map[string]int)
 	p.IfaceIPs = make(map[string]string)
-	for _, name := range []string{p.Config.DefaultIface, p.Config.GFWIface, p.Config.CompanyIface} {
+	for _, name := range []string{p.Config.DefaultIface, p.Config.GFWIface, p.Config.CompanyIface, p.Config.HTTPProxyIface} {
 		if name == "" {
 			continue
 		}
@@ -413,6 +494,80 @@ func (p *ProxyServer) Restart() error {
 	}
 
 	return nil
+}
+
+func (p *ProxyServer) handleHTTPConnect(client net.Conn, target string) {
+	remote, err := p.dialHTTPRemote(target)
+	if err != nil {
+		client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+		return
+	}
+	defer remote.Close()
+	client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(remote, client)
+		if tcp, ok := remote.(*net.TCPConn); ok {
+			tcp.CloseWrite()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(client, remote)
+		if tcp, ok := client.(*net.TCPConn); ok {
+			tcp.CloseWrite()
+		}
+	}()
+	wg.Wait()
+}
+
+func (p *ProxyServer) handleHTTPConnection(client net.Conn) {
+	defer client.Close()
+	br := bufio.NewReader(client)
+	req, err := http.ReadRequest(br)
+	if err != nil {
+		return
+	}
+
+	if req.Method == http.MethodConnect {
+		host := req.Host
+		if host != "" && !strings.Contains(host, ":") {
+			host = net.JoinHostPort(host, "443")
+		}
+		if host == "" {
+			return
+		}
+		p.handleHTTPConnect(client, host)
+		return
+	}
+
+	target := req.Host
+	if target == "" {
+		return
+	}
+	if !strings.Contains(target, ":") {
+		target = net.JoinHostPort(target, "80")
+	}
+	remote, err := p.dialHTTPRemote(target)
+	if err != nil {
+		client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+		return
+	}
+	defer remote.Close()
+
+	req.RequestURI = ""
+	req.URL.Scheme = ""
+	req.URL.Host = ""
+	if err := req.Write(remote); err != nil {
+		return
+	}
+	if req.Body != nil {
+		req.Body.Close()
+	}
+
+	io.Copy(client, remote)
 }
 
 func (p *ProxyServer) handleConnection(client net.Conn) {
@@ -545,10 +700,11 @@ func main() {
 	p := &ProxyServer{
 		configPath: *configPath,
 		Config: Config{
-			Port:         1080,
-			DefaultIface: "en0",
-			GFWListURL:   filepath.Join(configDir, "gfwlist.txt"),
-			AutoStart:    true,
+			Port:           1080,
+			DefaultIface:   "en0",
+			GFWListURL:     filepath.Join(configDir, "gfwlist.txt"),
+			AutoStart:      true,
+			HTTPProxyIface: "en0",
 		},
 	}
 
@@ -572,9 +728,19 @@ func main() {
 
 	if err := p.loadConfig(); err == nil {
 		log.Printf("[*] Loaded config from %s", *configPath)
-		if p.Config.AutoStart {
-			go p.Start()
+		if p.Config.HTTPProxyIface == "" {
+			p.Config.HTTPProxyIface = "en0"
 		}
+	} else {
+		log.Printf("Failed to load config: %v", err)
+	}
+
+	if err := p.startHTTPProxy(); err != nil {
+		log.Fatalf("Failed to start HTTP proxy: %v", err)
+	}
+
+	if p.Config.AutoStart {
+		go p.Start()
 	}
 
 	http.HandleFunc("/api/interfaces", func(w http.ResponseWriter, r *http.Request) {
@@ -597,6 +763,7 @@ func main() {
 			p.Config = cfg
 			p.mu.Unlock()
 			p.saveConfig()
+			p.refreshHTTPIfaceInfo()
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -609,9 +776,11 @@ func main() {
 		p.mu.RLock()
 		p.logMu.Lock()
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"running": p.running,
-			"port":    p.Config.Port,
-			"logs":    p.logBuffer,
+			"running":        p.running,
+			"port":           p.Config.Port,
+			"httpProxyPort":  p.httpProxyPort,
+			"httpProxyIface": p.Config.HTTPProxyIface,
+			"logs":           p.logBuffer,
 		})
 		p.logMu.Unlock()
 		p.mu.RUnlock()
@@ -717,9 +886,22 @@ func main() {
                     </div>
                 </div>
                 
-                <div class="card">
-                    <div class="card-header fw-bold">Rules & Settings</div>
-                    <div class="card-body">
+                    <div class="card">
+                        <div class="card-header fw-bold">HTTP Proxy</div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Outgoing Interface</label>
+                                <select id="httpProxyIface" class="form-select"></select>
+                            </div>
+                            <div class="alert alert-light mb-0 py-2">
+                                HTTP proxy port: <strong><span id="httpProxyStatus">Starting...</span></strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header fw-bold">Rules & Settings</div>
+                        <div class="card-body">
                         <div class="mb-3"><label class="form-label">Company Domains</label><textarea id="companyDomains" class="form-control" rows="2" placeholder="e.g. company.com, internal.net"></textarea></div>
                         <div class="mb-3"><label class="form-label">Bypass Domains (Direct)</label><textarea id="bypassDomains" class="form-control" rows="2" placeholder="e.g. example.com, local.dev"></textarea></div>
                         <div class="mb-3"><label class="form-label">Extra GFW Domains</label><textarea id="extraGfwDomains" class="form-control" rows="2" placeholder="e.g. gvt2.com, google.com"></textarea></div>
@@ -759,7 +941,7 @@ func main() {
     <script>
         async function refreshInterfaces() {
             const ifaces = await fetch('/api/interfaces').then(r => r.json());
-            ['defaultIface', 'gfwIface', 'companyIface'].forEach(id => {
+            ['defaultIface', 'gfwIface', 'companyIface', 'httpProxyIface'].forEach(id => {
                 const sel = document.getElementById(id);
                 const currentVal = sel.value;
                 sel.innerHTML = '<option value="">None</option>' + ifaces.map(i => `+"`"+`<option value="${i.name}">${i.name}</option>`+"`"+`).join('');
@@ -775,6 +957,7 @@ func main() {
                 document.getElementById('defaultIface').value = config.defaultIface || '';
                 document.getElementById('gfwIface').value = config.gfwIface || '';
                 document.getElementById('companyIface').value = config.companyIface || '';
+                document.getElementById('httpProxyIface').value = config.httpProxyIface || '';
                 document.getElementById('companyDomains').value = (config.companyDomains || []).join(', ');
                 document.getElementById('bypassDomains').value = (config.bypassDomains || []).join(', ');
                 document.getElementById('extraGfwDomains').value = (config.extraGfwDomains || []).join(', ');
@@ -799,6 +982,7 @@ func main() {
                 bypassDomains: document.getElementById('bypassDomains').value.split(',').map(s => s.trim()).filter(s => s),
                 extraGfwDomains: document.getElementById('extraGfwDomains').value.split(',').map(s => s.trim()).filter(s => s),
                 gfwlistUrl: document.getElementById('gfwlistUrl').value,
+                httpProxyIface: document.getElementById('httpProxyIface').value,
                 autoStart: document.getElementById('autoStart').checked
             };
             await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
@@ -847,6 +1031,12 @@ func main() {
             try {
                 const status = await fetch('/api/status').then(r => r.json());
                 const port = status.port || 1080;
+                const httpStatus = document.getElementById('httpProxyStatus');
+                if (httpStatus) {
+                    const httpPort = status.httpProxyPort;
+                    const httpIface = status.httpProxyIface || 'HTTP';
+                    httpStatus.innerText = httpPort ? httpIface + ' -> 127.0.0.1:' + httpPort : 'Starting...';
+                }
                 document.getElementById('statusBadge').innerHTML = status.running ? `+"`"+`<span class="status-on">● Running (127.0.0.1:${port})</span>`+"`"+` : '<span class="status-off">○ Stopped</span>';
                 document.getElementById('btnStart').disabled = status.running;
                 document.getElementById('btnRestart').disabled = !status.running;
