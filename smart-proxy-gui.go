@@ -385,7 +385,7 @@ func (p *ProxyServer) dialHTTPRemote(addr string) (net.Conn, error) {
 
 func (p *ProxyServer) startHTTPProxy() error {
 	p.refreshHTTPIfaceInfo()
-	addr := fmt.Sprintf("127.0.0.1:%d", httpProxyPortConst)
+	addr := fmt.Sprintf("0.0.0.0:%d", httpProxyPortConst)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -394,7 +394,7 @@ func (p *ProxyServer) startHTTPProxy() error {
 	p.httpListener = ln
 	p.httpProxyPort = httpProxyPortConst
 	p.mu.Unlock()
-	p.addLog(fmt.Sprintf("HTTP proxy started on 127.0.0.1:%d", p.httpProxyPort))
+	p.addLog(fmt.Sprintf("HTTP proxy started on 0.0.0.0:%d", p.httpProxyPort))
 
 	go func() {
 		for {
@@ -429,7 +429,7 @@ func (p *ProxyServer) Start() error {
 		}
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p.Config.Port))
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p.Config.Port))
 	if err != nil {
 		p.mu.Unlock()
 		return err
@@ -443,7 +443,7 @@ func (p *ProxyServer) Start() error {
 	}
 
 	p.loadGFWList()
-	p.addLog(fmt.Sprintf("SOCKS5 Proxy started on 127.0.0.1:%d", p.Config.Port))
+	p.addLog(fmt.Sprintf("SOCKS5 Proxy started on 0.0.0.0:%d", p.Config.Port))
 
 	go func() {
 		for {
@@ -1035,9 +1035,9 @@ func main() {
                 if (httpStatus) {
                     const httpPort = status.httpProxyPort;
                     const httpIface = status.httpProxyIface || 'HTTP';
-                    httpStatus.innerText = httpPort ? httpIface + ' -> 127.0.0.1:' + httpPort : 'Starting...';
+                    httpStatus.innerText = httpPort ? httpIface + ' -> 0.0.0.0:' + httpPort : 'Starting...';
                 }
-                document.getElementById('statusBadge').innerHTML = status.running ? `+"`"+`<span class="status-on">● Running (127.0.0.1:${port})</span>`+"`"+` : '<span class="status-off">○ Stopped</span>';
+                document.getElementById('statusBadge').innerHTML = status.running ? `+"`"+`<span class="status-on">● Running (0.0.0.0:${port})</span>`+"`"+` : '<span class="status-off">○ Stopped</span>';
                 document.getElementById('btnStart').disabled = status.running;
                 document.getElementById('btnRestart').disabled = !status.running;
                 document.getElementById('btnStop').disabled = !status.running;
