@@ -40,11 +40,25 @@ func (p *ProxyServer) addLog(msg string) {
 	log.Println(msg)
 }
 
+func (p *ProxyServer) clearLogs() {
+	p.logMu.Lock()
+	defer p.logMu.Unlock()
+	p.logBuffer = nil
+}
+
 func (p *ProxyServer) Start() error {
+	systemProxy := detectSystemProxy()
+	ignoredConfiguredGFWProxy := false
+
 	p.mu.Lock()
 	if p.running {
 		p.mu.Unlock()
 		return fmt.Errorf("server already running")
+	}
+
+	if systemProxy == "" && p.Config.GFWProxy != "" {
+		p.Config.GFWProxy = ""
+		ignoredConfiguredGFWProxy = true
 	}
 
 	p.IfaceIndices = make(map[string]int)
@@ -68,6 +82,10 @@ func (p *ProxyServer) Start() error {
 	p.listener = ln
 	p.running = true
 	p.mu.Unlock()
+
+	if ignoredConfiguredGFWProxy {
+		p.addLog("Ignored configured GFW upstream proxy because no global proxy was detected")
+	}
 
 	if p.onStatusChange != nil {
 		p.onStatusChange(true)

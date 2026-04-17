@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"flag"
 	"fmt"
 	"io"
@@ -13,9 +12,6 @@ import (
 
 	"github.com/getlantern/systray"
 )
-
-//go:embed assets/*
-var embeddedAssets embed.FS
 
 func main() {
 	guiPort := flag.Int("gui-port", 0, "Port for GUI console (0 for random)")

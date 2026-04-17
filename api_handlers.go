@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/fs"
 	"net"
 	"net/http"
 )
@@ -52,6 +50,15 @@ func setupAPIHandlers(p *ProxyServer) {
 		p.mu.RUnlock()
 	})
 
+	http.HandleFunc("/api/logs/clear", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.clearLogs()
+		w.WriteHeader(http.StatusOK)
+	})
+
 	http.HandleFunc("/api/start", func(w http.ResponseWriter, r *http.Request) {
 		if err := p.Start(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -95,12 +102,5 @@ func setupAPIHandlers(p *ProxyServer) {
 		json.NewEncoder(w).Encode(map[string]string{"iface": iface})
 	})
 
-	// Serve static assets from embedded FS
-	subFS, _ := fs.Sub(embeddedAssets, "assets")
-	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(subFS))))
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, controlPanelHTML)
-	})
+	http.HandleFunc("/", serveEmbeddedFrontend)
 }

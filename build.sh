@@ -8,6 +8,12 @@ RESOURCE_DIR="${APP_BUNDLE}/Contents/Resources"
 
 echo "🚧 Building ${APP_NAME}..."
 
+echo "🎨 Building frontend..."
+(
+    cd frontend
+    npm run build
+)
+
 # Ensure directories exist
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${RESOURCE_DIR}"

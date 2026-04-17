@@ -10,6 +10,12 @@ RESOURCE_FILE="${APP_NAME}.syso"
 
 export PATH="$(go env GOPATH)/bin:$PATH"
 
+echo "🎨 Building frontend..."
+(
+  cd frontend
+  npm run build
+)
+
 if ! command -v rsrc >/dev/null 2>&1; then
   echo "📦 Installing rsrc tool for resource embedding..."
   go install github.com/akavel/rsrc@v0.10.2
