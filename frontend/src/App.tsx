@@ -47,8 +47,8 @@ function App() {
   const [controlAction, setControlAction] = useState<ControlAction | null>(
     null,
   );
-  const [detectingTarget, setDetectingTarget] = useState<DetectTarget | null>(
-    null,
+  const [detectingTargets, setDetectingTargets] = useState<Set<DetectTarget>>(
+    new Set(),
   );
   const [useDetectedSystemProxy, setUseDetectedSystemProxy] = useState(false);
   const [systemProxyHint, setSystemProxyHint] = useState("");
@@ -259,7 +259,7 @@ function App() {
   };
 
   const handleAutoDetect = async (target: DetectTarget) => {
-    setDetectingTarget(target);
+    setDetectingTargets((prev) => new Set(prev).add(target));
 
     try {
       await refreshInterfaces();
@@ -289,7 +289,11 @@ function App() {
         message: error instanceof Error ? error.message : "Auto-detect failed.",
       });
     } finally {
-      setDetectingTarget(null);
+      setDetectingTargets((prev) => {
+        const next = new Set(prev);
+        next.delete(target);
+        return next;
+      });
     }
   };
 
@@ -386,7 +390,7 @@ function App() {
               useDetectedSystemProxy={useDetectedSystemProxy}
             />
             <GeneralSettingsPanel
-              detectingTarget={detectingTarget}
+              detectingTargets={detectingTargets}
               form={form}
               gfwProxyActive={gfwProxyActive}
               interfaceOptions={interfaceOptions}

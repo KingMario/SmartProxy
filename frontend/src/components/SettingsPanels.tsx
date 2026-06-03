@@ -92,7 +92,7 @@ export function QuickSettingsPanel({
 }
 
 type GeneralSettingsPanelProps = {
-  detectingTarget: DetectTarget | null;
+  detectingTargets: Set<DetectTarget>;
   form: FormState;
   gfwProxyActive: boolean;
   interfaceOptions: NetworkInterface[];
@@ -102,7 +102,7 @@ type GeneralSettingsPanelProps = {
 };
 
 export function GeneralSettingsPanel({
-  detectingTarget,
+  detectingTargets,
   form,
   gfwProxyActive,
   interfaceOptions,
@@ -174,13 +174,13 @@ export function GeneralSettingsPanel({
             </select>
             <button
               className="button button--secondary button--outline"
-              disabled={detectingTarget !== null || gfwProxyActive}
+              disabled={detectingTargets.has("gfw") || gfwProxyActive}
               onClick={() => {
                 onAutoDetect("gfw");
               }}
               type="button"
             >
-              {detectingTarget === "gfw" ? "Testing..." : "🔍 Detect"}
+              {detectingTargets.has("gfw") ? "Testing..." : "🔍 Detect"}
             </button>
           </div>
           {gfwProxyActive ? (
@@ -218,13 +218,13 @@ export function GeneralSettingsPanel({
             </select>
             <button
               className="button button--secondary button--outline"
-              disabled={detectingTarget !== null}
+              disabled={detectingTargets.has("company")}
               onClick={() => {
                 onAutoDetect("company");
               }}
               type="button"
             >
-              {detectingTarget === "company" ? "Testing..." : "🔍 Detect"}
+              {detectingTargets.has("company") ? "Testing..." : "🔍 Detect"}
             </button>
           </div>
         </div>
