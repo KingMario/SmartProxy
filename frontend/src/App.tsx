@@ -13,8 +13,6 @@ import {
 import type {
   ConfigResponse,
   ControlAction,
-  DetectResponse,
-  DetectTarget,
   FormState,
   NetworkInterface,
   StatusResponse,
@@ -28,7 +26,6 @@ import {
   defaultStatus,
   fetchJson,
   getConfigSignature,
-  normalizeDomains,
   normalizeStatus,
   postWithoutResponse,
 } from "./utils";
@@ -47,13 +44,11 @@ function App() {
   const [controlAction, setControlAction] = useState<ControlAction | null>(
     null,
   );
-  const [detectingTargets, setDetectingTargets] = useState<Set<DetectTarget>>(
-    new Set(),
-  );
   const [useDetectedSystemProxy, setUseDetectedSystemProxy] = useState(false);
   const [systemProxyHint, setSystemProxyHint] = useState("");
   const [toast, setToast] = useState<ToastState>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const keydownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
   const detectedSystemProxy = systemProxyHint.trim();
   const effectiveGfwProxy =
@@ -80,16 +75,16 @@ function App() {
     : "○ Stopped";
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setToast(null);
-    }, 3000);
-
-    if (!toast) {
-      window.clearTimeout(timeoutId);
-    }
+    const timeoutId = toast
+      ? window.setTimeout(() => {
+          setToast(null);
+        }, 3000)
+      : 0;
 
     return () => {
-      window.clearTimeout(timeoutId);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, [toast]);
 
@@ -114,8 +109,9 @@ function App() {
           ),
         ]);
 
+        const formState = createFormState(config);
         setInterfaces(loadedInterfaces);
-        setForm(createFormState(config));
+        setForm(formState);
         setSystemProxyHint(systemProxy.proxy ?? "");
         setUseDetectedSystemProxy(
           Boolean(
@@ -125,20 +121,9 @@ function App() {
           ),
         );
         setSavedConfigSignature(
-          getConfigSignature({
-            autoStart: config.autoStart ?? false,
-            bypassDomains: normalizeDomains(config.bypassDomains ?? []),
-            companyDomains: normalizeDomains(config.companyDomains ?? []),
-            companyIface: config.companyIface ?? "",
-            defaultIface: config.defaultIface ?? "",
-            extraGfwDomains: normalizeDomains(config.extraGfwDomains ?? []),
-            gfwIface: config.gfwIface ?? "",
-            gfwProxy: config.gfwProxy ?? "",
-            gfwlistUrl: config.gfwlistUrl ?? "",
-            httpProxyIface: config.httpProxyIface ?? "",
-            port: config.port || 1080,
-            verboseLog: config.verboseLog ?? false,
-          }),
+          getConfigSignature(
+            buildConfigPayload(formState, config.gfwProxy ?? ""),
+          ),
         );
       } catch (error) {
         setToast({
@@ -188,12 +173,6 @@ function App() {
       ...currentForm,
       [key]: value,
     }));
-  };
-
-  const refreshInterfaces = async () => {
-    const loadedInterfaces =
-      await fetchJson<NetworkInterface[]>("/api/interfaces");
-    setInterfaces(loadedInterfaces);
   };
 
   const refreshSystemProxyState = async () => {
@@ -258,45 +237,6 @@ function App() {
     }
   };
 
-  const handleAutoDetect = async (target: DetectTarget) => {
-    setDetectingTargets((prev) => new Set(prev).add(target));
-
-    try {
-      await refreshInterfaces();
-      const response = await fetchJson<DetectResponse>(
-        `/api/autodetect-${target}`,
-        {
-          method: "POST",
-        },
-      );
-      const detectedIface = response.iface ?? "";
-
-      if (target === "gfw") {
-        setField("gfwIface", detectedIface);
-      } else {
-        setField("companyIface", detectedIface);
-      }
-
-      setToast({
-        kind: "success",
-        message: detectedIface
-          ? `Auto-detected ${target === "gfw" ? "GFW" : "Company"} Interface: ${detectedIface}`
-          : `No working ${target === "gfw" ? "GFW" : "Company"} interface found.`,
-      });
-    } catch (error) {
-      setToast({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Auto-detect failed.",
-      });
-    } finally {
-      setDetectingTargets((prev) => {
-        const next = new Set(prev);
-        next.delete(target);
-        return next;
-      });
-    }
-  };
-
   const handleClearLogs = async () => {
     setIsClearingLogs(true);
 
@@ -317,27 +257,28 @@ function App() {
     }
   };
 
+  keydownHandlerRef.current = (event: KeyboardEvent) => {
+    const key = event.key.toLowerCase();
+
+    if ((event.metaKey || event.ctrlKey) && key === "s") {
+      event.preventDefault();
+      void handleSave();
+    }
+
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && key === "r") {
+      event.preventDefault();
+      void handleControl("restart");
+    }
+  };
+
   useEffect(() => {
-    const handleKeydown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-
-      if ((event.metaKey || event.ctrlKey) && key === "s") {
-        event.preventDefault();
-        void handleSave();
-      }
-
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && key === "r") {
-        event.preventDefault();
-        void handleControl("restart");
-      }
-    };
-
-    document.addEventListener("keydown", handleKeydown);
+    const handler = (e: KeyboardEvent) => keydownHandlerRef.current?.(e);
+    document.addEventListener("keydown", handler);
 
     return () => {
-      document.removeEventListener("keydown", handleKeydown);
+      document.removeEventListener("keydown", handler);
     };
-  });
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -379,26 +320,26 @@ function App() {
         <div className="app-grid">
           <div className="settings-column">
             <QuickSettingsPanel
+              autoStart={form.autoStart}
               detectedSystemProxy={detectedSystemProxy}
-              form={form}
               isRefreshingSystemProxy={isRefreshingSystemProxy}
+              onAutoStartChange={(value) => setField("autoStart", value)}
               onRefreshSystemProxy={() => {
                 void refreshSystemProxyState();
               }}
-              setField={setField}
+              onVerboseLogChange={(value) => setField("verboseLog", value)}
               setUseDetectedSystemProxy={setUseDetectedSystemProxy}
               useDetectedSystemProxy={useDetectedSystemProxy}
+              verboseLog={form.verboseLog}
             />
             <GeneralSettingsPanel
-              detectingTargets={detectingTargets}
               form={form}
               gfwProxyActive={gfwProxyActive}
               interfaceOptions={interfaceOptions}
               isLoading={isLoading}
-              onAutoDetect={(target) => {
-                void handleAutoDetect(target);
-              }}
+              onInterfacesLoaded={setInterfaces}
               setField={setField}
+              setToast={setToast}
             />
             <HttpProxyPanel
               form={form}

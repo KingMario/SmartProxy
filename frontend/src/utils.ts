@@ -104,6 +104,13 @@ export function normalizeStatus(nextStatus: StatusResponse): StatusResponse {
   };
 }
 
+async function assertResponseOk(response: Response): Promise<void> {
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed with status ${response.status}`);
+  }
+}
+
 export async function fetchJson<T>(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -119,11 +126,7 @@ export async function fetchJson<T>(
     headers,
   });
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
-  }
-
+  await assertResponseOk(response);
   return (await response.json()) as T;
 }
 
@@ -136,8 +139,5 @@ export async function postWithoutResponse(url: string, body?: unknown) {
     method: "POST",
   });
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
-  }
+  await assertResponseOk(response);
 }

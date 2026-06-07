@@ -1,6 +1,13 @@
+import type {
+  DetectResponse,
+  DetectTarget,
+  FormState,
+  NetworkInterface,
+  ToastState,
+} from "../types";
+import { fetchJson } from "../utils";
+import { InterfaceSelector } from "./InterfaceSelector";
 import TokenInput from "./TokenInput";
-
-import type { DetectTarget, FormState, NetworkInterface } from "../types";
 
 type FieldSetter = <K extends keyof FormState>(
   key: K,
@@ -8,21 +15,25 @@ type FieldSetter = <K extends keyof FormState>(
 ) => void;
 
 type QuickSettingsPanelProps = {
+  autoStart: boolean;
+  verboseLog: boolean;
   detectedSystemProxy: string;
-  form: FormState;
   isRefreshingSystemProxy: boolean;
+  onAutoStartChange: (value: boolean) => void;
+  onVerboseLogChange: (value: boolean) => void;
   onRefreshSystemProxy: () => void;
-  setField: FieldSetter;
   setUseDetectedSystemProxy: (value: boolean) => void;
   useDetectedSystemProxy: boolean;
 };
 
 export function QuickSettingsPanel({
+  autoStart,
+  verboseLog,
   detectedSystemProxy,
-  form,
   isRefreshingSystemProxy,
+  onAutoStartChange,
+  onVerboseLogChange,
   onRefreshSystemProxy,
-  setField,
   setUseDetectedSystemProxy,
   useDetectedSystemProxy,
 }: QuickSettingsPanelProps) {
@@ -32,10 +43,10 @@ export function QuickSettingsPanel({
       <div className="panel__body">
         <label className="switch" htmlFor="auto-start-toggle">
           <input
-            checked={form.autoStart}
+            checked={autoStart}
             id="auto-start-toggle"
             onChange={(event) => {
-              setField("autoStart", event.target.checked);
+              onAutoStartChange(event.target.checked);
             }}
             type="checkbox"
           />
@@ -43,10 +54,10 @@ export function QuickSettingsPanel({
         </label>
         <label className="switch" htmlFor="verbose-log-toggle">
           <input
-            checked={form.verboseLog}
+            checked={verboseLog}
             id="verbose-log-toggle"
             onChange={(event) => {
-              setField("verboseLog", event.target.checked);
+              onVerboseLogChange(event.target.checked);
             }}
             type="checkbox"
           />
@@ -92,23 +103,48 @@ export function QuickSettingsPanel({
 }
 
 type GeneralSettingsPanelProps = {
-  detectingTargets: Set<DetectTarget>;
   form: FormState;
   gfwProxyActive: boolean;
   interfaceOptions: NetworkInterface[];
   isLoading: boolean;
-  onAutoDetect: (target: DetectTarget) => void;
+  onInterfacesLoaded: (interfaces: NetworkInterface[]) => void;
   setField: FieldSetter;
+  setToast: (toast: ToastState) => void;
 };
 
+function makeDetectHandler(
+  target: DetectTarget,
+  label: string,
+  onInterfacesLoaded: (interfaces: NetworkInterface[]) => void,
+  onChange: (value: string) => void,
+  setToast: (toast: ToastState) => void,
+): () => Promise<void> {
+  return async () => {
+    const interfaces = await fetchJson<NetworkInterface[]>("/api/interfaces");
+    onInterfacesLoaded(interfaces);
+    const response = await fetchJson<DetectResponse>(
+      `/api/autodetect-${target}`,
+      { method: "POST" },
+    );
+    const detectedIface = response.iface ?? "";
+    onChange(detectedIface);
+    setToast({
+      kind: "success",
+      message: detectedIface
+        ? `Auto-detected ${label}: ${detectedIface}`
+        : `No working ${label} found.`,
+    });
+  };
+}
+
 export function GeneralSettingsPanel({
-  detectingTargets,
   form,
   gfwProxyActive,
   interfaceOptions,
   isLoading,
-  onAutoDetect,
+  onInterfacesLoaded,
   setField,
+  setToast,
 }: GeneralSettingsPanelProps) {
   return (
     <section className="panel">
@@ -129,105 +165,60 @@ export function GeneralSettingsPanel({
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="default-interface">Default Interface</label>
-          <select
-            disabled={isLoading}
-            id="default-interface"
-            name="defaultIface"
-            onChange={(event) => {
-              setField("defaultIface", event.target.value);
-            }}
-            value={form.defaultIface}
-          >
-            {interfaceOptions.map((option) => (
-              <option key={option.name || "none"} value={option.name}>
-                {option.name || "None"}
-              </option>
-            ))}
-          </select>
-        </div>
+        <InterfaceSelector
+          disabled={isLoading}
+          label="Default Interface"
+          onChange={(val) => setField("defaultIface", val)}
+          options={interfaceOptions}
+          value={form.defaultIface}
+        />
 
-        <div className="field">
-          <label htmlFor="gfw-interface">GFW Interface (Personal VPN)</label>
-          <div className="inline-control">
-            <select
-              aria-describedby={
-                gfwProxyActive ? "gfw-interface-hint" : undefined
-              }
-              disabled={isLoading || gfwProxyActive}
-              id="gfw-interface"
-              name="gfwIface"
-              onChange={(event) => {
-                setField("gfwIface", event.target.value);
-              }}
-              value={form.gfwIface}
-            >
-              {interfaceOptions.map((option) => (
-                <option
-                  key={`gfw-${option.name || "none"}`}
-                  value={option.name}
-                >
-                  {option.name || "None"}
-                </option>
-              ))}
-            </select>
-            <button
-              className="button button--secondary button--outline"
-              disabled={detectingTargets.has("gfw") || gfwProxyActive}
-              onClick={() => {
-                onAutoDetect("gfw");
-              }}
-              type="button"
-            >
-              {detectingTargets.has("gfw") ? "Testing..." : "🔍 Detect"}
-            </button>
-          </div>
-          {gfwProxyActive ? (
-            <small
-              className="field-hint field-hint--warning"
-              id="gfw-interface-hint"
-            >
-              Overridden by upstream proxy.
-            </small>
-          ) : null}
-        </div>
+        <InterfaceSelector
+          disabled={isLoading || gfwProxyActive}
+          label="GFW Interface (Personal VPN)"
+          onChange={(val) => setField("gfwIface", val)}
+          onDetect={makeDetectHandler(
+            "gfw",
+            "GFW Interface (Personal VPN)",
+            onInterfacesLoaded,
+            (val) => setField("gfwIface", val),
+            setToast,
+          )}
+          onDetectError={(error) =>
+            setToast({
+              kind: "error",
+              message:
+                error instanceof Error ? error.message : "Auto-detect failed.",
+            })
+          }
+          options={interfaceOptions}
+          value={form.gfwIface}
+          warningMessage={
+            gfwProxyActive ? "Overridden by upstream proxy." : undefined
+          }
+        />
 
-        <div className="field">
-          <label htmlFor="company-interface">
-            Company Interface (Company VPN)
-          </label>
-          <div className="inline-control">
-            <select
-              disabled={isLoading}
-              id="company-interface"
-              name="companyIface"
-              onChange={(event) => {
-                setField("companyIface", event.target.value);
-              }}
-              value={form.companyIface}
-            >
-              {interfaceOptions.map((option) => (
-                <option
-                  key={`company-${option.name || "none"}`}
-                  value={option.name}
-                >
-                  {option.name || "None"}
-                </option>
-              ))}
-            </select>
-            <button
-              className="button button--secondary button--outline"
-              disabled={detectingTargets.has("company")}
-              onClick={() => {
-                onAutoDetect("company");
-              }}
-              type="button"
-            >
-              {detectingTargets.has("company") ? "Testing..." : "🔍 Detect"}
-            </button>
-          </div>
-        </div>
+        <InterfaceSelector
+          disabled={isLoading}
+          label="Company Interface (Company VPN)"
+          onChange={(val) => setField("companyIface", val)}
+          onDetect={makeDetectHandler(
+            "company",
+            "Company Interface (Company VPN)",
+            onInterfacesLoaded,
+            (val) => setField("companyIface", val),
+            setToast,
+          )}
+          onDetectError={(error) =>
+            setToast({
+              kind: "error",
+              message:
+                error instanceof Error ? error.message : "Auto-detect failed.",
+            })
+          }
+          options={interfaceOptions}
+          value={form.companyIface}
+        />
       </div>
     </section>
   );
@@ -252,24 +243,13 @@ export function HttpProxyPanel({
     <section className="panel">
       <header className="panel__header">HTTP Proxy</header>
       <div className="panel__body">
-        <div className="field">
-          <label htmlFor="http-proxy-interface">Outgoing Interface</label>
-          <select
-            disabled={isLoading}
-            id="http-proxy-interface"
-            name="httpProxyIface"
-            onChange={(event) => {
-              setField("httpProxyIface", event.target.value);
-            }}
-            value={form.httpProxyIface}
-          >
-            {interfaceOptions.map((option) => (
-              <option key={`http-${option.name || "none"}`} value={option.name}>
-                {option.name || "None"}
-              </option>
-            ))}
-          </select>
-        </div>
+        <InterfaceSelector
+          disabled={isLoading}
+          label="Outgoing Interface"
+          onChange={(val) => setField("httpProxyIface", val)}
+          options={interfaceOptions}
+          value={form.httpProxyIface}
+        />
 
         <div className="status-card">
           HTTP proxy port: <strong>{httpProxyText}</strong>
