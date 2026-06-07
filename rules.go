@@ -124,14 +124,14 @@ func (p *ProxyServer) isCompanyDomain(host string) bool {
 }
 
 func (p *ProxyServer) selectIface(host string) string {
-	if net.ParseIP(host) != nil {
-		return p.Config.DefaultIface
-	}
 	if p.isBypassDomain(host) {
 		return p.Config.DefaultIface
 	}
 	if p.isCompanyDomain(host) && p.Config.CompanyIface != "" {
 		return p.Config.CompanyIface
+	}
+	if net.ParseIP(host) != nil {
+		return p.Config.DefaultIface
 	}
 	if p.isGFWDomain(host) {
 		return p.Config.GFWIface
