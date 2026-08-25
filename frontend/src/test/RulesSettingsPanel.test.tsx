@@ -7,6 +7,8 @@ import { defaultFormState } from "../utils";
 const baseProps = {
   form: defaultFormState,
   isLoading: false,
+  isUpdatingGFWList: false,
+  onUpdateGFWList: vi.fn(),
   setField: vi.fn(),
 };
 
@@ -49,7 +51,10 @@ describe("RulesSettingsPanel", () => {
     render(
       <RulesSettingsPanel
         {...baseProps}
-        form={{ ...defaultFormState, gfwlistUrl: "https://example.com/gfw.txt" }}
+        form={{
+          ...defaultFormState,
+          gfwlistUrl: "https://example.com/gfw.txt",
+        }}
       />,
     );
     expect(screen.getByRole("textbox", { name: /gfwlist url/i })).toHaveValue(
@@ -64,6 +69,19 @@ describe("RulesSettingsPanel", () => {
     await userEvent.click(urlInput);
     await userEvent.keyboard("x");
     expect(setField).toHaveBeenCalledWith("gfwlistUrl", "x");
+  });
+
+  it("requests a GFWList update when the update button is clicked", async () => {
+    const onUpdateGFWList = vi.fn();
+    render(
+      <RulesSettingsPanel {...baseProps} onUpdateGFWList={onUpdateGFWList} />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /check for gfwlist updates/i }),
+    );
+
+    expect(onUpdateGFWList).toHaveBeenCalledOnce();
   });
 
   it("disables all inputs while isLoading", () => {

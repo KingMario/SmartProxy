@@ -24,9 +24,9 @@ describe("normalizeDomains", () => {
   });
 
   it("deduplicates case-insensitively", () => {
-    expect(normalizeDomains(["Example.COM", "example.com", "EXAMPLE.COM"])).toEqual([
-      "Example.COM",
-    ]);
+    expect(
+      normalizeDomains(["Example.COM", "example.com", "EXAMPLE.COM"]),
+    ).toEqual(["Example.COM"]);
   });
 
   it("preserves original casing of the first occurrence", () => {
@@ -73,6 +73,7 @@ describe("parseDomainTokens", () => {
 
 const baseConfig: ConfigResponse = {
   autoStart: true,
+  autoUpdateGfwList: false,
   bypassDomains: ["bypass.com"],
   companyDomains: ["corp.com"],
   companyIface: "eth1",
@@ -344,6 +345,8 @@ describe("postWithoutResponse", () => {
         text: () => Promise.resolve("Forbidden"),
       }),
     );
-    await expect(postWithoutResponse("/api/action")).rejects.toThrow("Forbidden");
+    await expect(postWithoutResponse("/api/action")).rejects.toThrow(
+      "Forbidden",
+    );
   });
 });

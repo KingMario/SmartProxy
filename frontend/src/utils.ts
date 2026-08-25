@@ -2,6 +2,7 @@ import type { ConfigResponse, FormState, StatusResponse } from "./types";
 
 export const defaultFormState: FormState = {
   autoStart: false,
+  autoUpdateGfwList: false,
   bypassDomains: [],
   companyDomains: [],
   companyIface: "",
@@ -44,6 +45,7 @@ export function parseDomainTokens(value: string): string[] {
 export function createFormState(config: ConfigResponse): FormState {
   return {
     autoStart: config.autoStart ?? false,
+    autoUpdateGfwList: config.autoUpdateGfwList ?? false,
     bypassDomains: normalizeDomains(config.bypassDomains ?? []),
     companyDomains: normalizeDomains(config.companyDomains ?? []),
     companyIface: config.companyIface ?? "",
@@ -63,6 +65,7 @@ export function buildConfigPayload(
 ): ConfigResponse {
   return {
     autoStart: form.autoStart,
+    autoUpdateGfwList: form.autoUpdateGfwList,
     bypassDomains: normalizeDomains(form.bypassDomains),
     companyDomains: normalizeDomains(form.companyDomains),
     companyIface: form.companyIface,
@@ -80,6 +83,7 @@ export function buildConfigPayload(
 export function getConfigSignature(config: ConfigResponse): string {
   return JSON.stringify({
     autoStart: config.autoStart,
+    autoUpdateGfwList: config.autoUpdateGfwList,
     bypassDomains: normalizeDomains(config.bypassDomains),
     companyDomains: normalizeDomains(config.companyDomains),
     companyIface: config.companyIface,

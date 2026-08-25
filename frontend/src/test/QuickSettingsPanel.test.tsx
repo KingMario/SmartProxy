@@ -5,10 +5,12 @@ import { QuickSettingsPanel } from "../components/SettingsPanels";
 
 const baseProps = {
   autoStart: false,
+  autoUpdateGFWList: false,
   verboseLog: false,
   detectedSystemProxy: "",
   isRefreshingSystemProxy: false,
   onAutoStartChange: vi.fn(),
+  onAutoUpdateGFWListChange: vi.fn(),
   onVerboseLogChange: vi.fn(),
   onRefreshSystemProxy: vi.fn(),
   setUseDetectedSystemProxy: vi.fn(),
@@ -24,10 +26,28 @@ describe("QuickSettingsPanel", () => {
   it("calls onAutoStartChange when auto-start toggle is changed", async () => {
     const onAutoStartChange = vi.fn();
     render(
-      <QuickSettingsPanel {...baseProps} onAutoStartChange={onAutoStartChange} />,
+      <QuickSettingsPanel
+        {...baseProps}
+        onAutoStartChange={onAutoStartChange}
+      />,
     );
     await userEvent.click(screen.getByLabelText(/auto-start proxy/i));
     expect(onAutoStartChange).toHaveBeenCalledWith(true);
+  });
+
+  it("calls onAutoUpdateGFWListChange when GFWList auto-update is enabled", async () => {
+    const onAutoUpdateGFWListChange = vi.fn();
+    render(
+      <QuickSettingsPanel
+        {...baseProps}
+        autoUpdateGFWList={false}
+        onAutoUpdateGFWListChange={onAutoUpdateGFWListChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText(/auto-update gfwlist/i));
+
+    expect(onAutoUpdateGFWListChange).toHaveBeenCalledWith(true);
   });
 
   it("reflects verboseLog checked state", () => {
@@ -38,7 +58,10 @@ describe("QuickSettingsPanel", () => {
   it("calls onVerboseLogChange when verbose-log toggle is changed", async () => {
     const onVerboseLogChange = vi.fn();
     render(
-      <QuickSettingsPanel {...baseProps} onVerboseLogChange={onVerboseLogChange} />,
+      <QuickSettingsPanel
+        {...baseProps}
+        onVerboseLogChange={onVerboseLogChange}
+      />,
     );
     await userEvent.click(screen.getByLabelText(/verbose logging/i));
     expect(onVerboseLogChange).toHaveBeenCalledWith(true);
@@ -61,7 +84,9 @@ describe("QuickSettingsPanel", () => {
 
   it("disables proxy toggle when no system proxy is detected", () => {
     render(<QuickSettingsPanel {...baseProps} detectedSystemProxy="" />);
-    expect(screen.getByRole("checkbox", { name: /global proxy/i })).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: /global proxy/i }),
+    ).toBeDisabled();
   });
 
   it("enables proxy toggle when system proxy is detected", () => {
@@ -97,7 +122,9 @@ describe("QuickSettingsPanel", () => {
         setUseDetectedSystemProxy={setUseDetectedSystemProxy}
       />,
     );
-    await userEvent.click(screen.getByRole("checkbox", { name: /global proxy/i }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: /global proxy/i }),
+    );
     expect(setUseDetectedSystemProxy).toHaveBeenCalledWith(true);
   });
 });

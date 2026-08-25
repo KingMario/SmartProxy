@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  act,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../App";
 import type { ConfigResponse } from "../types";
@@ -19,6 +25,7 @@ const mockPost = postWithoutResponse as ReturnType<typeof vi.fn>;
 
 const baseConfig: ConfigResponse = {
   autoStart: false,
+  autoUpdateGfwList: false,
   bypassDomains: [],
   companyDomains: [],
   companyIface: "",
@@ -73,7 +80,9 @@ describe("App", () => {
 
   it("loads and displays port from config", async () => {
     await renderApp();
-    expect(screen.getByRole("spinbutton", { name: /socks5 port/i })).toHaveValue(1080);
+    expect(
+      screen.getByRole("spinbutton", { name: /socks5 port/i }),
+    ).toHaveValue(1080);
   });
 
   it("shows 'Starting...' for HTTP proxy when no port is reported", async () => {
@@ -84,7 +93,9 @@ describe("App", () => {
   it("shows error toast when initial data load fails", async () => {
     mockFetchJson.mockRejectedValue(new Error("Network error"));
     render(<App />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Network error");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Network error",
+    );
   });
 
   // ── Unsaved changes ───────────────────────────────────────────────────────
@@ -152,7 +163,9 @@ describe("App", () => {
     await user.click(screen.getByLabelText("Save"));
     expect(screen.getByLabelText("Saving")).toBeDisabled();
     resolveSave();
-    await waitFor(() => expect(screen.getByLabelText("Save")).not.toBeDisabled());
+    await waitFor(() =>
+      expect(screen.getByLabelText("Save")).not.toBeDisabled(),
+    );
   });
 
   // ── Control ───────────────────────────────────────────────────────────────
@@ -160,9 +173,7 @@ describe("App", () => {
   it("calls postWithoutResponse('/api/start') when Start is clicked", async () => {
     await renderApp();
     await user.click(screen.getByLabelText("Start"));
-    await waitFor(() =>
-      expect(mockPost).toHaveBeenCalledWith("/api/start"),
-    );
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/api/start"));
   });
 
   it("shows error toast when control action fails", async () => {
@@ -195,19 +206,14 @@ describe("App", () => {
     await renderApp();
     fireEvent.keyDown(document, { key: "s", metaKey: true });
     await waitFor(() =>
-      expect(mockPost).toHaveBeenCalledWith(
-        "/api/config",
-        expect.anything(),
-      ),
+      expect(mockPost).toHaveBeenCalledWith("/api/config", expect.anything()),
     );
   });
 
   it("triggers restart on Cmd+R", async () => {
     await renderApp();
     fireEvent.keyDown(document, { key: "r", metaKey: true });
-    await waitFor(() =>
-      expect(mockPost).toHaveBeenCalledWith("/api/restart"),
-    );
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/api/restart"));
   });
 
   it("does not trigger restart on Cmd+Shift+R", async () => {

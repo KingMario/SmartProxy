@@ -85,6 +85,12 @@ func main() {
 		log.Fatalf("Failed to start HTTP proxy: %v", err)
 	}
 
+	go func() {
+		if _, err := p.updateGFWListOnStartup(); err != nil {
+			p.addLog(fmt.Sprintf("Failed to update GFWList on startup: %v", err))
+		}
+	}()
+
 	if p.Config.AutoStart {
 		go p.Start()
 	}

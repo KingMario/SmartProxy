@@ -10,5 +10,6 @@
   ],
   "bypassDomains": [],
   "extraGfwDomains": [],
-  "autoStart": true
+  "autoStart": true,
+  "autoUpdateGfwList": false
 }

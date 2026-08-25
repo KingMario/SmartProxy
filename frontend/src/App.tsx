@@ -39,6 +39,7 @@ function App() {
   >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingGFWList, setIsUpdatingGFWList] = useState(false);
   const [isClearingLogs, setIsClearingLogs] = useState(false);
   const [isRefreshingSystemProxy, setIsRefreshingSystemProxy] = useState(false);
   const [controlAction, setControlAction] = useState<ControlAction | null>(
@@ -219,6 +220,33 @@ function App() {
     }
   };
 
+  const handleGFWListUpdate = async () => {
+    setIsUpdatingGFWList(true);
+
+    try {
+      const result = await fetchJson<{ updated: boolean }>(
+        "/api/gfwlist/update",
+        { method: "POST" },
+      );
+      const nextStatus = await fetchJson<StatusResponse>("/api/status");
+      setStatus(normalizeStatus(nextStatus));
+      setToast({
+        kind: "success",
+        message: result.updated
+          ? "GFWList updated successfully."
+          : "GFWList is already up to date.",
+      });
+    } catch (error) {
+      setToast({
+        kind: "error",
+        message:
+          error instanceof Error ? error.message : "Failed to update GFWList.",
+      });
+    } finally {
+      setIsUpdatingGFWList(false);
+    }
+  };
+
   const handleControl = async (action: ControlAction) => {
     setControlAction(action);
 
@@ -321,9 +349,13 @@ function App() {
           <div className="settings-column">
             <QuickSettingsPanel
               autoStart={form.autoStart}
+              autoUpdateGFWList={form.autoUpdateGfwList}
               detectedSystemProxy={detectedSystemProxy}
               isRefreshingSystemProxy={isRefreshingSystemProxy}
               onAutoStartChange={(value) => setField("autoStart", value)}
+              onAutoUpdateGFWListChange={(value) =>
+                setField("autoUpdateGfwList", value)
+              }
               onRefreshSystemProxy={() => {
                 void refreshSystemProxyState();
               }}
@@ -351,6 +383,10 @@ function App() {
             <RulesSettingsPanel
               form={form}
               isLoading={isLoading}
+              isUpdatingGFWList={isUpdatingGFWList}
+              onUpdateGFWList={() => {
+                void handleGFWListUpdate();
+              }}
               setField={setField}
             />
           </div>

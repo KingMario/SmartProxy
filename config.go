@@ -7,18 +7,19 @@ import (
 
 // Config represents the proxy configuration
 type Config struct {
-	Port            int      `json:"port"`
-	DefaultIface    string   `json:"defaultIface"`
-	GFWIface        string   `json:"gfwIface"`
-	CompanyIface    string   `json:"companyIface"`
-	GFWListURL      string   `json:"gfwlistUrl"`
-	CompanyDomains  []string `json:"companyDomains"`
-	BypassDomains   []string `json:"bypassDomains"`
-	ExtraGFWDomains []string `json:"extraGfwDomains"`
-	AutoStart       bool     `json:"autoStart"`
-	HTTPProxyIface  string   `json:"httpProxyIface"`
-	GFWProxy        string   `json:"gfwProxy"`
-	VerboseLog      bool     `json:"verboseLog"`
+	Port              int      `json:"port"`
+	DefaultIface      string   `json:"defaultIface"`
+	GFWIface          string   `json:"gfwIface"`
+	CompanyIface      string   `json:"companyIface"`
+	GFWListURL        string   `json:"gfwlistUrl"`
+	CompanyDomains    []string `json:"companyDomains"`
+	BypassDomains     []string `json:"bypassDomains"`
+	ExtraGFWDomains   []string `json:"extraGfwDomains"`
+	AutoStart         bool     `json:"autoStart"`
+	HTTPProxyIface    string   `json:"httpProxyIface"`
+	GFWProxy          string   `json:"gfwProxy"`
+	VerboseLog        bool     `json:"verboseLog"`
+	AutoUpdateGFWList bool     `json:"autoUpdateGfwList"`
 }
 
 func (p *ProxyServer) saveConfig() error {

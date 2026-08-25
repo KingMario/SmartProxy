@@ -6,6 +6,22 @@ import (
 	"net/http"
 )
 
+func gfwListUpdateHandler(p *ProxyServer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		updated, err := p.updateGFWList()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]bool{"updated": updated})
+	}
+}
+
 func setupAPIHandlers(p *ProxyServer) {
 	http.HandleFunc("/api/interfaces", func(w http.ResponseWriter, r *http.Request) {
 		ifaces, _ := net.Interfaces()
@@ -92,6 +108,8 @@ func setupAPIHandlers(p *ProxyServer) {
 	http.HandleFunc("/api/detect-system-proxy", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"proxy": detectSystemProxy()})
 	})
+
+	http.HandleFunc("/api/gfwlist/update", gfwListUpdateHandler(p))
 
 	http.HandleFunc("/api/autodetect-company", func(w http.ResponseWriter, r *http.Request) {
 		iface := p.AutoDetectCompanyIface()

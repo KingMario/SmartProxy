@@ -5,6 +5,7 @@ export type NetworkInterface = {
 
 export type ConfigResponse = {
   autoStart: boolean;
+  autoUpdateGfwList: boolean;
   bypassDomains: string[];
   companyDomains: string[];
   companyIface: string;
@@ -20,6 +21,7 @@ export type ConfigResponse = {
 
 export type FormState = {
   autoStart: boolean;
+  autoUpdateGfwList: boolean;
   bypassDomains: string[];
   companyDomains: string[];
   companyIface: string;

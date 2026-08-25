@@ -16,10 +16,12 @@ type FieldSetter = <K extends keyof FormState>(
 
 type QuickSettingsPanelProps = {
   autoStart: boolean;
+  autoUpdateGFWList: boolean;
   verboseLog: boolean;
   detectedSystemProxy: string;
   isRefreshingSystemProxy: boolean;
   onAutoStartChange: (value: boolean) => void;
+  onAutoUpdateGFWListChange: (value: boolean) => void;
   onVerboseLogChange: (value: boolean) => void;
   onRefreshSystemProxy: () => void;
   setUseDetectedSystemProxy: (value: boolean) => void;
@@ -28,10 +30,12 @@ type QuickSettingsPanelProps = {
 
 export function QuickSettingsPanel({
   autoStart,
+  autoUpdateGFWList,
   verboseLog,
   detectedSystemProxy,
   isRefreshingSystemProxy,
   onAutoStartChange,
+  onAutoUpdateGFWListChange,
   onVerboseLogChange,
   onRefreshSystemProxy,
   setUseDetectedSystemProxy,
@@ -51,6 +55,17 @@ export function QuickSettingsPanel({
             type="checkbox"
           />
           <span>Auto-start proxy on program launch</span>
+        </label>
+        <label className="switch" htmlFor="auto-update-gfwlist-toggle">
+          <input
+            checked={autoUpdateGFWList}
+            id="auto-update-gfwlist-toggle"
+            onChange={(event) => {
+              onAutoUpdateGFWListChange(event.target.checked);
+            }}
+            type="checkbox"
+          />
+          <span>Auto-update GFWList on program launch</span>
         </label>
         <label className="switch" htmlFor="verbose-log-toggle">
           <input
@@ -262,12 +277,16 @@ export function HttpProxyPanel({
 type RulesSettingsPanelProps = {
   form: FormState;
   isLoading: boolean;
+  isUpdatingGFWList: boolean;
+  onUpdateGFWList: () => void;
   setField: FieldSetter;
 };
 
 export function RulesSettingsPanel({
   form,
   isLoading,
+  isUpdatingGFWList,
+  onUpdateGFWList,
   setField,
 }: RulesSettingsPanelProps) {
   return (
@@ -340,6 +359,22 @@ export function RulesSettingsPanel({
             type="text"
             value={form.gfwlistUrl}
           />
+        </div>
+
+        <div className="field">
+          <button
+            disabled={isLoading || isUpdatingGFWList}
+            onClick={onUpdateGFWList}
+            type="button"
+          >
+            {isUpdatingGFWList
+              ? "Checking GFWList…"
+              : "Check for GFWList Updates"}
+          </button>
+          <p className="field-description">
+            Checks the official GFWList and downloads it when a newer version is
+            available.
+          </p>
         </div>
       </div>
     </section>
