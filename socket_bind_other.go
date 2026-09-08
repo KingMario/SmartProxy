@@ -2,5 +2,6 @@
 
 package main
 
-func bindSocketToInterface(fd uintptr, network string, ifIndex int) {
+func bindSocketToInterface(fd uintptr, network string, ifIndex int) error {
+	return nil
 }

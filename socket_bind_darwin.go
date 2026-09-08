@@ -12,10 +12,10 @@ const (
 	IPV6_BOUND_IF = 0x7D
 )
 
-func bindSocketToInterface(fd uintptr, network string, ifIndex int) {
+func bindSocketToInterface(fd uintptr, network string, ifIndex int) error {
 	if strings.HasSuffix(network, "6") {
-		_ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, ifIndex)
+		return syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, IPV6_BOUND_IF, ifIndex)
 	} else {
-		_ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, ifIndex)
+		return syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, IP_BOUND_IF, ifIndex)
 	}
 }

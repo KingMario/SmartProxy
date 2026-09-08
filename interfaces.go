@@ -60,7 +60,7 @@ func getInterfaceInfo(ifaceName string) (int, string, error) {
 	}
 	addrs, err := iface.Addrs()
 	if err != nil {
-		return iface.Index, "", nil
+		return 0, "", err
 	}
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {

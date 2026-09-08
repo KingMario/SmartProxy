@@ -10,10 +10,9 @@ import (
 )
 
 type ProxyServer struct {
+	interfaceCache *interfaceCache
 	Config         Config
 	GFWDomains     map[string]bool
-	IfaceIndices   map[string]int
-	IfaceIPs       map[string]string
 	listener       net.Listener
 	running        bool
 	mu             sync.RWMutex
@@ -59,19 +58,6 @@ func (p *ProxyServer) Start() error {
 	if systemProxy == "" && p.Config.GFWProxy != "" {
 		p.Config.GFWProxy = ""
 		ignoredConfiguredGFWProxy = true
-	}
-
-	p.IfaceIndices = make(map[string]int)
-	p.IfaceIPs = make(map[string]string)
-	for _, name := range []string{p.Config.DefaultIface, p.Config.GFWIface, p.Config.CompanyIface, p.Config.HTTPProxyIface} {
-		if name == "" {
-			continue
-		}
-		idx, ip, err := getInterfaceInfo(name)
-		if err == nil {
-			p.IfaceIndices[name] = idx
-			p.IfaceIPs[name] = ip
-		}
 	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p.Config.Port))

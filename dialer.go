@@ -48,28 +48,46 @@ func (p *ProxyServer) dialRemote(host, targetAddr string) (net.Conn, error) {
 	}
 
 	targetIface := p.selectIface(host)
-	p.mu.RLock()
-	ifIndex := p.IfaceIndices[targetIface]
-	localIP := p.IfaceIPs[targetIface]
-	p.mu.RUnlock()
+	info, err := p.resolveInterface(targetIface, false)
+	if err != nil {
+		err = fmt.Errorf("resolve interface %q for %s: %w", targetIface, targetAddr, err)
+		p.addLog(err.Error())
+		return nil, err
+	}
 
 	if verbose {
 		p.addLog(fmt.Sprintf("[DIR] %s -> Interface %s", targetAddr, targetIface))
 	}
 
-	dialer := &net.Dialer{
-		Timeout: 15 * time.Second,
-	}
-	if localIP != "" {
-		dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(localIP)}
-	}
-	if ifIndex != 0 {
-		dialer.Control = func(network, address string, c syscall.RawConn) error {
-			return c.Control(func(fd uintptr) {
-				bindSocketToInterface(fd, network, ifIndex)
-			})
+	conn, err := dialWithInterface(targetAddr, info)
+	if err != nil && targetIface != "" && isInterfaceError(err) {
+		current, refreshErr := p.resolveInterface(targetIface, true)
+		if refreshErr != nil {
+			return nil, fmt.Errorf("refresh interface %q: %w", targetIface, refreshErr)
+		}
+		// Retry only when a fresh snapshot identifies a different binding.
+		if current != info {
+			return dialWithInterface(targetAddr, current)
 		}
 	}
+	return conn, err
+}
 
+func dialWithInterface(targetAddr string, info interfaceInfo) (net.Conn, error) {
+	dialer := &net.Dialer{Timeout: 15 * time.Second}
+	if info.ip != "" {
+		dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(info.ip)}
+	}
+	if info.index != 0 {
+		dialer.Control = func(network, address string, c syscall.RawConn) error {
+			var bindErr error
+			if err := c.Control(func(fd uintptr) {
+				bindErr = bindSocketToInterface(fd, network, info.index)
+			}); err != nil {
+				return err
+			}
+			return bindErr
+		}
+	}
 	return dialer.Dial("tcp", targetAddr)
 }

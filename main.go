@@ -81,6 +81,9 @@ func main() {
 		log.Printf("Failed to load config: %v", err)
 	}
 
+	stopInterfaceMonitor := p.startInterfaceMonitor()
+	defer stopInterfaceMonitor()
+
 	if err := p.startHTTPProxy(); err != nil {
 		log.Fatalf("Failed to start HTTP proxy: %v", err)
 	}

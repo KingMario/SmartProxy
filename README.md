@@ -105,6 +105,11 @@ Installer script location:
     *   **Default Interface**: Your main internet connection (e.g., `en0`).
     *   **GFW Interface**: Your personal VPN's virtual interface (e.g., `utun6`).
     *   **Company Interface**: Your corporate VPN's interface (e.g., `utun7`).
+
+    On macOS and Windows, SmartProxy caches interface indices and IP addresses and subscribes to system network change notifications (macOS SystemConfiguration; Windows IP Helper interface and unicast address notifications). Notifications invalidate the cache immediately; consecutive notifications are coalesced for a background refresh. New connections use cached state when available. An unavailable interface is queried again on the next connection, and interface-related connection errors trigger a fresh lookup with at most one retry when the binding changes. Builds without an active observer query the interface for each connection.
+
+    VPNs can connect after SmartProxy starts or reconnect under the same interface name without restarting SmartProxy. If the configured interface cannot be found or queried, the connection fails. If the VPN's interface name changes, select its current name in settings. Existing connections must reconnect to use the current interface state.
+
 4.  **Configure Rules**:
     *   Add company domains to the **Company Domains** list.
     *   Add custom blocked sites to **Extra GFW Domains**.
