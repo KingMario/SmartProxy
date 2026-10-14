@@ -1,6 +1,12 @@
 import type { ConfigResponse, FormState, StatusResponse } from "./types";
 
 export const defaultFormState: FormState = {
+  defaultDNS: "",
+  defaultDNSBootstrap: "",
+  gfwDNS: "",
+  gfwDNSBootstrap: "",
+  companyDNS: "",
+  companyDNSBootstrap: "",
   autoStart: false,
   autoUpdateGfwList: false,
   bypassDomains: [],
@@ -44,6 +50,12 @@ export function parseDomainTokens(value: string): string[] {
 
 export function createFormState(config: ConfigResponse): FormState {
   return {
+    defaultDNS: config.defaultDNS ?? "",
+    defaultDNSBootstrap: (config.defaultDNSBootstrap ?? []).join(", "),
+    gfwDNS: config.gfwDNS ?? "",
+    gfwDNSBootstrap: (config.gfwDNSBootstrap ?? []).join(", "),
+    companyDNS: config.companyDNS ?? "",
+    companyDNSBootstrap: (config.companyDNSBootstrap ?? []).join(", "),
     autoStart: config.autoStart ?? false,
     autoUpdateGfwList: config.autoUpdateGfwList ?? false,
     bypassDomains: normalizeDomains(config.bypassDomains ?? []),
@@ -64,6 +76,12 @@ export function buildConfigPayload(
   effectiveGfwProxy: string,
 ): ConfigResponse {
   return {
+    defaultDNS: form.defaultDNS.trim(),
+    defaultDNSBootstrap: parseDomainTokens(form.defaultDNSBootstrap),
+    gfwDNS: form.gfwDNS.trim(),
+    gfwDNSBootstrap: parseDomainTokens(form.gfwDNSBootstrap),
+    companyDNS: form.companyDNS.trim(),
+    companyDNSBootstrap: parseDomainTokens(form.companyDNSBootstrap),
     autoStart: form.autoStart,
     autoUpdateGfwList: form.autoUpdateGfwList,
     bypassDomains: normalizeDomains(form.bypassDomains),
@@ -82,6 +100,12 @@ export function buildConfigPayload(
 
 export function getConfigSignature(config: ConfigResponse): string {
   return JSON.stringify({
+    defaultDNS: (config.defaultDNS ?? "").trim(),
+    defaultDNSBootstrap: config.defaultDNSBootstrap ?? [],
+    gfwDNS: (config.gfwDNS ?? "").trim(),
+    gfwDNSBootstrap: config.gfwDNSBootstrap ?? [],
+    companyDNS: (config.companyDNS ?? "").trim(),
+    companyDNSBootstrap: config.companyDNSBootstrap ?? [],
     autoStart: config.autoStart,
     autoUpdateGfwList: config.autoUpdateGfwList,
     bypassDomains: normalizeDomains(config.bypassDomains),

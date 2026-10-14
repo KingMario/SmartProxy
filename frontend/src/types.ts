@@ -10,6 +10,12 @@ export type ConfigResponse = {
   companyDomains: string[];
   companyIface: string;
   defaultIface: string;
+  defaultDNS?: string;
+  defaultDNSBootstrap?: string[];
+  gfwDNS?: string;
+  gfwDNSBootstrap?: string[];
+  companyDNS?: string;
+  companyDNSBootstrap?: string[];
   extraGfwDomains: string[];
   gfwIface: string;
   gfwProxy: string;
@@ -20,6 +26,12 @@ export type ConfigResponse = {
 };
 
 export type FormState = {
+  defaultDNS: string;
+  defaultDNSBootstrap: string;
+  gfwDNS: string;
+  gfwDNSBootstrap: string;
+  companyDNS: string;
+  companyDNSBootstrap: string;
   autoStart: boolean;
   autoUpdateGfwList: boolean;
   bypassDomains: string[];

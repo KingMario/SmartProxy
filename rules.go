@@ -81,6 +81,10 @@ func (p *ProxyServer) isGFWDomain(host string) bool {
 	host = strings.ToLower(host)
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	return p.isGFWDomainLocked(host)
+}
+
+func (p *ProxyServer) isGFWDomainLocked(host string) bool {
 	if p.GFWDomains[host] {
 		return true
 	}
@@ -124,17 +128,41 @@ func (p *ProxyServer) isCompanyDomain(host string) bool {
 }
 
 func (p *ProxyServer) selectIface(host string) string {
-	if p.isBypassDomain(host) {
-		return p.Config.DefaultIface
+	return p.selectRoute(host).iface
+}
+
+type outboundRoute struct {
+	iface     string
+	dns       string
+	bootstrap []string
+	upstream  string
+}
+
+func matchesDomains(host string, domains []string) bool {
+	for _, domain := range domains {
+		domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
+		if domain != "" && (host == domain || strings.HasSuffix(host, "."+domain)) {
+			return true
+		}
 	}
-	if p.isCompanyDomain(host) && p.Config.CompanyIface != "" {
-		return p.Config.CompanyIface
+	return false
+}
+
+// Take one configuration snapshot so DNS and the connection choose the same route.
+func (p *ProxyServer) selectRoute(host string) outboundRoute {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	cfg := p.Config
+	route := outboundRoute{iface: cfg.DefaultIface, dns: cfg.DefaultDNS, bootstrap: cfg.DefaultDNSBootstrap}
+	switch {
+	case matchesDomains(host, cfg.BypassDomains):
+	case matchesDomains(host, cfg.CompanyDomains) && cfg.CompanyIface != "":
+		route = outboundRoute{iface: cfg.CompanyIface, dns: cfg.CompanyDNS, bootstrap: cfg.CompanyDNSBootstrap}
+	case net.ParseIP(host) != nil:
+	case p.isGFWDomainLocked(host):
+		route = outboundRoute{iface: cfg.GFWIface, dns: cfg.GFWDNS, bootstrap: cfg.GFWDNSBootstrap, upstream: cfg.GFWProxy}
 	}
-	if net.ParseIP(host) != nil {
-		return p.Config.DefaultIface
-	}
-	if p.isGFWDomain(host) {
-		return p.Config.GFWIface
-	}
-	return p.Config.DefaultIface
+	route.bootstrap = append([]string(nil), route.bootstrap...)
+	return route
 }

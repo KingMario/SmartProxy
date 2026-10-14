@@ -88,6 +88,7 @@ func (p *ProxyServer) startInterfaceMonitor() func() {
 	changes := make(chan struct{}, 1)
 	stopObserver, err := observeInterfaceChanges(func() {
 		cache.invalidate()
+		p.resetDNS()
 		select {
 		case changes <- struct{}{}:
 		default:

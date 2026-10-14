@@ -10,6 +10,8 @@ import (
 )
 
 type ProxyServer struct {
+	dnsOnce        sync.Once
+	dns            *routedDNSResolver
 	interfaceCache *interfaceCache
 	Config         Config
 	GFWDomains     map[string]bool

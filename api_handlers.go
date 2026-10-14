@@ -37,12 +37,30 @@ func setupAPIHandlers(p *ProxyServer) {
 
 	http.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			var cfg Config
-			json.NewDecoder(r.Body).Decode(&cfg)
+			// Older open GUI tabs do not send DNS fields. Preserve them unless explicitly supplied.
+			p.mu.RLock()
+			cfg := Config{
+				DefaultDNS: p.Config.DefaultDNS, DefaultDNSBootstrap: append([]string(nil), p.Config.DefaultDNSBootstrap...),
+				GFWDNS: p.Config.GFWDNS, GFWDNSBootstrap: append([]string(nil), p.Config.GFWDNSBootstrap...),
+				CompanyDNS: p.Config.CompanyDNS, CompanyDNSBootstrap: append([]string(nil), p.Config.CompanyDNSBootstrap...),
+			}
+			p.mu.RUnlock()
+			if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+				http.Error(w, "invalid configuration JSON", http.StatusBadRequest)
+				return
+			}
+			if err := validateDNSConfig(cfg); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			p.mu.Lock()
 			p.Config = cfg
 			p.mu.Unlock()
-			p.saveConfig()
+			p.resetDNS()
+			if err := p.saveConfig(); err != nil {
+				http.Error(w, "failed to save configuration", http.StatusInternalServerError)
+				return
+			}
 			p.refreshHTTPIfaceInfo()
 			w.WriteHeader(http.StatusOK)
 			return

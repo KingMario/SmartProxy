@@ -88,6 +88,21 @@ const baseConfig: ConfigResponse = {
 };
 
 describe("createFormState", () => {
+  it("round-trips DNS routing settings through the editor and save payload", () => {
+    const config = {
+      ...baseConfig,
+      defaultDNS: "https://resolver.test/dns-query",
+      defaultDNSBootstrap: ["192.0.2.1", "192.0.2.2"],
+      gfwDNS: "https://vpn-dns.test/dns-query",
+      gfwDNSBootstrap: ["192.0.2.3"],
+      companyDNS: "system",
+      companyDNSBootstrap: [],
+    };
+    const saved = buildConfigPayload(createFormState(config), config.gfwProxy);
+    expect(getConfigSignature(saved)).toBe(getConfigSignature(config));
+    expect(saved.defaultDNSBootstrap).toEqual(config.defaultDNSBootstrap);
+    expect(getConfigSignature({ ...saved, defaultDNS: "system" })).not.toBe(getConfigSignature(saved));
+  });
   it("maps all fields correctly", () => {
     const form = createFormState(baseConfig);
     expect(form.autoStart).toBe(true);

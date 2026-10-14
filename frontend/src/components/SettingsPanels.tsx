@@ -127,6 +127,55 @@ type GeneralSettingsPanelProps = {
   setToast: (toast: ToastState) => void;
 };
 
+function DNSRouteFields({
+  form, prefix, label, disabled, setField,
+}: {
+  form: FormState;
+  prefix: "default" | "gfw" | "company";
+  label: string;
+  disabled: boolean;
+  setField: FieldSetter;
+}) {
+  const dnsKey = `${prefix}DNS` as const;
+  const bootstrapKey = `${prefix}DNSBootstrap` as const;
+  return (
+    <>
+      <div className="field">
+        <label htmlFor={`${prefix}-dns`}>{label} DNS</label>
+        <input
+          aria-describedby={`${prefix}-dns-help`}
+          disabled={disabled}
+          id={`${prefix}-dns`}
+          onChange={(event) => setField(dnsKey, event.target.value)}
+          placeholder="System DNS (blank), or HTTPS DNS endpoint"
+          type="text"
+          value={form[dnsKey]}
+        />
+        <p className="field-description" id={`${prefix}-dns-help`}>
+          HTTPS DNS queries use the selected interface. Blank or “system” uses
+          system DNS, including company VPN split DNS.
+        </p>
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-dns-bootstrap`}>{label} DNS bootstrap IPs</label>
+        <input
+          aria-describedby={`${prefix}-dns-bootstrap-help`}
+          disabled={disabled}
+          id={`${prefix}-dns-bootstrap`}
+          onChange={(event) => setField(bootstrapKey, event.target.value)}
+          placeholder="Optional IP addresses, separated by commas"
+          type="text"
+          value={form[bootstrapKey]}
+        />
+        <p className="field-description" id={`${prefix}-dns-bootstrap-help`}>
+          Connect to the DNS service using these IPs while verifying its TLS
+          hostname. Leave blank to resolve the DNS service with system DNS.
+        </p>
+      </div>
+    </>
+  );
+}
+
 function makeDetectHandler(
   target: DetectTarget,
   label: string,
@@ -187,6 +236,7 @@ export function GeneralSettingsPanel({
           options={interfaceOptions}
           value={form.defaultIface}
         />
+        <DNSRouteFields disabled={isLoading} form={form} prefix="default" label="Default" setField={setField} />
 
         <InterfaceSelector
           disabled={isLoading || gfwProxyActive}
@@ -212,6 +262,7 @@ export function GeneralSettingsPanel({
             gfwProxyActive ? "Overridden by upstream proxy." : undefined
           }
         />
+        <DNSRouteFields disabled={isLoading || gfwProxyActive} form={form} prefix="gfw" label="GFW" setField={setField} />
 
         <InterfaceSelector
           disabled={isLoading}
@@ -234,6 +285,7 @@ export function GeneralSettingsPanel({
           options={interfaceOptions}
           value={form.companyIface}
         />
+        <DNSRouteFields disabled={isLoading} form={form} prefix="company" label="Company" setField={setField} />
       </div>
     </section>
   );

@@ -24,7 +24,7 @@
 ## 🛠 Installation & Build
 
 ### Prerequisites
-*   Go 1.21+
+*   Go 1.25.6+
 *   macOS (for `.app` bundle) or Windows (for `.exe`)
 
 ### Building from Source
@@ -114,6 +114,14 @@ Installer script location:
     *   Add company domains to the **Company Domains** list.
     *   Add custom blocked sites to **Extra GFW Domains**.
     *   Hit **Save** (or `Cmd+S`) to apply changes immediately.
+
+5.  **Configure DNS per route**:
+    *   SOCKS clients must send hostnames (remote DNS / `socks5h`) for domain routing and DNS splitting. HTTP CONNECT hostnames use the same logic. Requests containing an IP address skip DNS resolution.
+    *   **Default DNS**, **GFW DNS**, and **Company DNS** accept an HTTPS DNS-over-HTTPS endpoint. DNS requests and destination connections use the same selected interface. An active GFW upstream proxy resolves its own destination names instead.
+    *   Leave a DNS field blank or set it to `system` to retain the OS resolver, including scoped company VPN DNS. Existing configurations keep this behavior until an endpoint is configured.
+    *   Optional **DNS bootstrap IPs** connect directly to the DNS service without first resolving its hostname through system DNS. HTTPS still validates the configured service hostname. Endpoints and bootstrap IPs are entirely user-configured; there are no website-specific DNS overrides.
+    *   These settings are stored as `defaultDNS` / `defaultDNSBootstrap`, `gfwDNS` / `gfwDNSBootstrap`, and `companyDNS` / `companyDNSBootstrap` in the user configuration. Bootstrap values are arrays of IP address strings.
+    *   DoH resolves IPv4 addresses, matching the current interface address selection. Results are cached up to their DNS TTL (at most five minutes), separately for each interface address, endpoint, and bootstrap configuration. Saving settings or receiving a network change clears the cache. A failed configured DNS query reports an error without silently using another route's DNS.
 
 ## 📝 License
 
