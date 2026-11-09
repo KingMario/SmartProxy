@@ -74,9 +74,6 @@ func main() {
 
 	if err := p.loadConfig(); err == nil {
 		log.Printf("[*] Loaded config from %s", *configPath)
-		if p.Config.HTTPProxyIface == "" {
-			p.Config.HTTPProxyIface = "en0"
-		}
 	} else {
 		log.Printf("Failed to load config: %v", err)
 	}
@@ -86,6 +83,9 @@ func main() {
 
 	if err := p.startHTTPProxy(); err != nil {
 		log.Fatalf("Failed to start HTTP proxy: %v", err)
+	}
+	if err := p.startDirectHTTPProxy(); err != nil {
+		log.Fatalf("Failed to start fixed-interface HTTP proxy: %v", err)
 	}
 
 	go func() {

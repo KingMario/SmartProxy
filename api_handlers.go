@@ -40,7 +40,8 @@ func setupAPIHandlers(p *ProxyServer) {
 			// Older open GUI tabs do not send DNS fields. Preserve them unless explicitly supplied.
 			p.mu.RLock()
 			cfg := Config{
-				DefaultDNS: p.Config.DefaultDNS, DefaultDNSBootstrap: append([]string(nil), p.Config.DefaultDNSBootstrap...),
+				HTTPProxyDNS: append([]string(nil), p.Config.HTTPProxyDNS...),
+				DefaultDNS:   p.Config.DefaultDNS, DefaultDNSBootstrap: append([]string(nil), p.Config.DefaultDNSBootstrap...),
 				GFWDNS: p.Config.GFWDNS, GFWDNSBootstrap: append([]string(nil), p.Config.GFWDNSBootstrap...),
 				CompanyDNS: p.Config.CompanyDNS, CompanyDNSBootstrap: append([]string(nil), p.Config.CompanyDNSBootstrap...),
 			}
@@ -53,6 +54,10 @@ func setupAPIHandlers(p *ProxyServer) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			if err := validateHTTPProxyConfig(cfg); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			p.mu.Lock()
 			p.Config = cfg
 			p.mu.Unlock()
@@ -61,7 +66,6 @@ func setupAPIHandlers(p *ProxyServer) {
 				http.Error(w, "failed to save configuration", http.StatusInternalServerError)
 				return
 			}
-			p.refreshHTTPIfaceInfo()
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -74,11 +78,12 @@ func setupAPIHandlers(p *ProxyServer) {
 		p.mu.RLock()
 		p.logMu.Lock()
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"running":        p.running,
-			"port":           p.Config.Port,
-			"httpProxyPort":  p.httpProxyPort,
-			"httpProxyIface": p.Config.HTTPProxyIface,
-			"logs":           p.logBuffer,
+			"running":             p.running,
+			"port":                p.Config.Port,
+			"httpProxyPort":       p.httpProxyPort,
+			"httpProxyIface":      p.Config.HTTPProxyIface,
+			"directHttpProxyPort": p.directHTTPProxyPort,
+			"logs":                p.logBuffer,
 		})
 		p.logMu.Unlock()
 		p.mu.RUnlock()

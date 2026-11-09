@@ -68,8 +68,8 @@ function App() {
     () => [{ index: 0, name: "" }, ...interfaces],
     [interfaces],
   );
-  const httpProxyText = status.httpProxyPort
-    ? `${status.httpProxyIface || "HTTP"} -> 0.0.0.0:${status.httpProxyPort}`
+  const httpProxyText = status.directHttpProxyPort
+    ? `0.0.0.0:${status.directHttpProxyPort}`
     : "Starting...";
   const statusText = status.running
     ? `● Running (0.0.0.0:${status.port || 1080})`

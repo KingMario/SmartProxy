@@ -307,12 +307,14 @@ describe("App", () => {
           running: true,
           logs: [],
           port: 1080,
-          httpProxyPort: 8080,
+          httpProxyPort: 17890,
+          directHttpProxyPort: 17891,
           httpProxyIface: "eth0",
         });
       return Promise.reject(new Error(`Unexpected: ${url}`));
     });
     await renderApp();
-    expect(screen.getByText(/eth0 -> 0\.0\.0\.0:8080/)).toBeInTheDocument();
+    expect(screen.getByText("0.0.0.0:17890")).toBeInTheDocument();
+    expect(screen.getByText("0.0.0.0:17891")).toBeInTheDocument();
   });
 });

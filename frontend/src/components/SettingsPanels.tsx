@@ -214,6 +214,12 @@ export function GeneralSettingsPanel({
     <section className="panel">
       <header className="panel__header">General Settings</header>
       <div className="panel__body">
+        <div className="status-card">
+          Routing HTTP proxy: <strong>0.0.0.0:17890</strong>
+          <small className="field-hint">
+            Uses the same Default, GFW and Company routing rules as SOCKS5.
+          </small>
+        </div>
         <div className="field">
           <label htmlFor="socks5-port">SOCKS5 Port</label>
           <input
@@ -308,7 +314,7 @@ export function HttpProxyPanel({
 }: HttpProxyPanelProps) {
   return (
     <section className="panel">
-      <header className="panel__header">HTTP Proxy</header>
+      <header className="panel__header">Fixed-interface HTTP Proxy</header>
       <div className="panel__body">
         <InterfaceSelector
           disabled={isLoading}
@@ -316,10 +322,31 @@ export function HttpProxyPanel({
           onChange={(val) => setField("httpProxyIface", val)}
           options={interfaceOptions}
           value={form.httpProxyIface}
+          warningMessage={!form.httpProxyIface ? "Select an interface to use port 17891." : undefined}
         />
 
         <div className="status-card">
           HTTP proxy port: <strong>{httpProxyText}</strong>
+        </div>
+        <p className="field-description">
+          Port 17891 uses only the selected interface for DNS and connections.
+          Domain routing rules and the GFW upstream proxy do not apply.
+        </p>
+        <div className="field">
+          <label htmlFor="http-proxy-dns">Interface DNS servers (optional)</label>
+          <input
+            id="http-proxy-dns"
+            disabled={isLoading}
+            value={form.httpProxyDNS}
+            onChange={(event) => setField("httpProxyDNS", event.target.value)}
+            placeholder="Automatic from selected interface"
+            aria-describedby="http-proxy-dns-hint"
+          />
+          <small className="field-hint" id="http-proxy-dns-hint">
+            Leave blank to use this interface's DNS servers. Or enter IPv4 DNS
+            addresses separated by commas. DNS and connection failures are reported
+            without switching to another interface. Choose WLAN / Wi-Fi for local access.
+          </small>
         </div>
       </div>
     </section>

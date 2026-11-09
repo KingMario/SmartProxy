@@ -39,6 +39,11 @@ const baseProps = {
 };
 
 describe("GeneralSettingsPanel", () => {
+  it("shows the routing HTTP port in General Settings", () => {
+    render(<GeneralSettingsPanel {...baseProps} />);
+    expect(screen.getByText("0.0.0.0:17890")).toBeInTheDocument();
+    expect(screen.getByText(/same Default, GFW and Company routing rules/)).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

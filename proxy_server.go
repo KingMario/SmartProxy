@@ -10,25 +10,26 @@ import (
 )
 
 type ProxyServer struct {
-	dnsOnce        sync.Once
-	dns            *routedDNSResolver
-	interfaceCache *interfaceCache
-	Config         Config
-	GFWDomains     map[string]bool
-	listener       net.Listener
-	running        bool
-	mu             sync.RWMutex
-	logBuffer      []string
-	logMu          sync.Mutex
-	configPath     string
-	onStatusChange func(running bool)
-	httpListener   net.Listener
-	httpProxyPort  int
-	httpIfaceIndex int
-	httpIfaceIP    string
+	dnsOnce             sync.Once
+	dns                 *routedDNSResolver
+	interfaceCache      *interfaceCache
+	Config              Config
+	GFWDomains          map[string]bool
+	listener            net.Listener
+	running             bool
+	mu                  sync.RWMutex
+	logBuffer           []string
+	logMu               sync.Mutex
+	configPath          string
+	onStatusChange      func(running bool)
+	httpListener        net.Listener
+	httpProxyPort       int
+	directHTTPListener  net.Listener
+	directHTTPProxyPort int
 }
 
 const httpProxyPortConst = 17890
+const directHTTPProxyPortConst = 17891
 
 func (p *ProxyServer) addLog(msg string) {
 	p.logMu.Lock()

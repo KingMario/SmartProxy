@@ -17,6 +17,7 @@ export const defaultFormState: FormState = {
   gfwIface: "",
   gfwlistUrl: "",
   httpProxyIface: "",
+  httpProxyDNS: "",
   port: "1080",
   verboseLog: false,
 };
@@ -66,6 +67,7 @@ export function createFormState(config: ConfigResponse): FormState {
     gfwIface: config.gfwIface ?? "",
     gfwlistUrl: config.gfwlistUrl ?? "",
     httpProxyIface: config.httpProxyIface ?? "",
+    httpProxyDNS: (config.httpProxyDNS ?? []).join(", "),
     port: String(config.port || 1080),
     verboseLog: config.verboseLog ?? false,
   };
@@ -93,6 +95,7 @@ export function buildConfigPayload(
     gfwProxy: effectiveGfwProxy.trim(),
     gfwlistUrl: form.gfwlistUrl.trim(),
     httpProxyIface: form.httpProxyIface,
+    httpProxyDNS: form.httpProxyDNS.split(/[,\s]+/).map((ip) => ip.trim()).filter(Boolean),
     port: Number.parseInt(form.port, 10) || 1080,
     verboseLog: form.verboseLog,
   };
@@ -117,6 +120,7 @@ export function getConfigSignature(config: ConfigResponse): string {
     gfwProxy: config.gfwProxy.trim(),
     gfwlistUrl: config.gfwlistUrl.trim(),
     httpProxyIface: config.httpProxyIface,
+    httpProxyDNS: config.httpProxyDNS ?? [],
     port: config.port,
     verboseLog: config.verboseLog,
   });
@@ -126,6 +130,7 @@ export function normalizeStatus(nextStatus: StatusResponse): StatusResponse {
   return {
     httpProxyIface: nextStatus.httpProxyIface,
     httpProxyPort: nextStatus.httpProxyPort,
+    directHttpProxyPort: nextStatus.directHttpProxyPort,
     logs: nextStatus.logs ?? [],
     port: nextStatus.port ?? 1080,
     running: nextStatus.running,

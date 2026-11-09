@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 )
 
 // Config represents the proxy configuration
@@ -18,6 +20,7 @@ type Config struct {
 	ExtraGFWDomains     []string `json:"extraGfwDomains"`
 	AutoStart           bool     `json:"autoStart"`
 	HTTPProxyIface      string   `json:"httpProxyIface"`
+	HTTPProxyDNS        []string `json:"httpProxyDNS"`
 	GFWProxy            string   `json:"gfwProxy"`
 	VerboseLog          bool     `json:"verboseLog"`
 	AutoUpdateGFWList   bool     `json:"autoUpdateGfwList"`
@@ -51,6 +54,22 @@ func (p *ProxyServer) loadConfig() error {
 	if err := validateDNSConfig(cfg); err != nil {
 		return fmt.Errorf("invalid DNS configuration: %w", err)
 	}
+	if err := validateHTTPProxyConfig(cfg); err != nil {
+		return err
+	}
 	p.Config = cfg
+	return nil
+}
+
+func validateHTTPProxyConfig(cfg Config) error {
+	if cfg.Port == httpProxyPortConst || cfg.Port == directHTTPProxyPortConst {
+		return fmt.Errorf("SOCKS5 port must differ from HTTP ports 17890 and 17891")
+	}
+	for _, server := range cfg.HTTPProxyDNS {
+		ip := net.ParseIP(strings.TrimSpace(server))
+		if ip == nil || ip.To4() == nil || ip.IsUnspecified() {
+			return fmt.Errorf("HTTP proxy DNS servers must be IPv4 addresses")
+		}
+	}
 	return nil
 }

@@ -11,16 +11,23 @@ const interfaces = [
 
 const baseProps = {
   form: defaultFormState,
-  httpProxyText: "HTTP -> 0.0.0.0:8080",
+  httpProxyText: "0.0.0.0:17891",
   interfaceOptions: interfaces,
   isLoading: false,
   setField: vi.fn(),
 };
 
 describe("HttpProxyPanel", () => {
+  it("edits the dedicated interface DNS servers", async () => {
+    const setField = vi.fn();
+    render(<HttpProxyPanel {...baseProps} setField={setField} />);
+    await userEvent.type(screen.getByLabelText("Interface DNS servers (optional)"), "1");
+    expect(setField).toHaveBeenCalledWith("httpProxyDNS", "1");
+  });
   it("renders the HTTP proxy status text", () => {
     render(<HttpProxyPanel {...baseProps} />);
-    expect(screen.getByText("HTTP -> 0.0.0.0:8080")).toBeInTheDocument();
+    expect(screen.getByText("0.0.0.0:17891")).toBeInTheDocument();
+    expect(screen.queryByText("0.0.0.0:17890")).not.toBeInTheDocument();
   });
 
   it("renders interface options", () => {

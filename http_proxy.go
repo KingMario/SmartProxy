@@ -11,34 +11,7 @@ import (
 	"sync"
 )
 
-func (p *ProxyServer) refreshHTTPIfaceInfo() {
-	p.mu.RLock()
-	iface := p.Config.HTTPProxyIface
-	p.mu.RUnlock()
-
-	if iface == "" {
-		p.mu.Lock()
-		p.httpIfaceIndex = 0
-		p.httpIfaceIP = ""
-		p.mu.Unlock()
-		return
-	}
-
-	idx, ip, err := getInterfaceInfo(iface)
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if err != nil {
-		p.addLog(fmt.Sprintf("Failed to resolve HTTP proxy interface %s: %v", iface, err))
-		p.httpIfaceIndex = 0
-		p.httpIfaceIP = ""
-		return
-	}
-	p.httpIfaceIndex = idx
-	p.httpIfaceIP = ip
-}
-
 func (p *ProxyServer) startHTTPProxy() error {
-	p.refreshHTTPIfaceInfo()
 	addr := fmt.Sprintf("0.0.0.0:%d", httpProxyPortConst)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -63,10 +36,34 @@ func (p *ProxyServer) startHTTPProxy() error {
 	return nil
 }
 
-func (p *ProxyServer) handleHTTPConnect(client net.Conn, target string) {
-	host, _, _ := net.SplitHostPort(target)
-	remote, err := p.dialRemote(host, target)
+type httpProxyDial func(host, target string) (net.Conn, error)
+
+func (p *ProxyServer) startDirectHTTPProxy() error {
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", directHTTPProxyPortConst))
 	if err != nil {
+		return err
+	}
+	p.mu.Lock()
+	p.directHTTPListener, p.directHTTPProxyPort = ln, directHTTPProxyPortConst
+	p.mu.Unlock()
+	p.addLog("Fixed-interface HTTP proxy started on 0.0.0.0:17891")
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go p.handleHTTPConnectionWithDial(conn, p.dialDirectHTTP)
+		}
+	}()
+	return nil
+}
+
+func (p *ProxyServer) handleHTTPConnect(client net.Conn, reader io.Reader, target string, dial httpProxyDial) {
+	host, _, _ := net.SplitHostPort(target)
+	remote, err := dial(host, target)
+	if err != nil {
+		p.addLog(fmt.Sprintf("HTTP CONNECT %s: %v", target, err))
 		client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
 		return
 	}
@@ -76,7 +73,7 @@ func (p *ProxyServer) handleHTTPConnect(client net.Conn, target string) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		io.Copy(remote, client)
+		io.Copy(remote, reader)
 		if tcp, ok := remote.(*net.TCPConn); ok {
 			tcp.CloseWrite()
 		}
@@ -92,6 +89,10 @@ func (p *ProxyServer) handleHTTPConnect(client net.Conn, target string) {
 }
 
 func (p *ProxyServer) handleHTTPConnection(client net.Conn) {
+	p.handleHTTPConnectionWithDial(client, p.dialRemote)
+}
+
+func (p *ProxyServer) handleHTTPConnectionWithDial(client net.Conn, dial httpProxyDial) {
 	defer client.Close()
 	br := bufio.NewReader(client)
 	req, err := http.ReadRequest(br)
@@ -107,7 +108,7 @@ func (p *ProxyServer) handleHTTPConnection(client net.Conn) {
 		if host == "" {
 			return
 		}
-		p.handleHTTPConnect(client, host)
+		p.handleHTTPConnect(client, br, host, dial)
 		return
 	}
 
@@ -119,8 +120,9 @@ func (p *ProxyServer) handleHTTPConnection(client net.Conn) {
 		target = net.JoinHostPort(target, "80")
 	}
 	host, _, _ := net.SplitHostPort(target)
-	remote, err := p.dialRemote(host, target)
+	remote, err := dial(host, target)
 	if err != nil {
+		p.addLog(fmt.Sprintf("HTTP %s: %v", target, err))
 		client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
 		return
 	}
@@ -129,6 +131,11 @@ func (p *ProxyServer) handleHTTPConnection(client net.Conn) {
 	req.RequestURI = ""
 	req.URL.Scheme = ""
 	req.URL.Host = ""
+	// This handler serves one HTTP request per client connection. Ask the
+	// origin to close so clients do not reuse a connection we cannot read again.
+	req.Close = true
+	req.Header.Del("Proxy-Authorization")
+	req.Header.Del("Proxy-Connection")
 	if err := req.Write(remote); err != nil {
 		return
 	}

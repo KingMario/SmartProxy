@@ -135,6 +135,12 @@ describe("createFormState", () => {
 
 describe("buildConfigPayload", () => {
   const form = createFormState(baseConfig);
+  it("round-trips fixed-interface DNS and tracks changes", () => {
+    const configured = { ...baseConfig, httpProxyDNS: ["114.114.114.114", "223.5.5.5"] };
+    const restored = createFormState(configured);
+    expect(buildConfigPayload(restored, "").httpProxyDNS).toEqual(configured.httpProxyDNS);
+    expect(getConfigSignature(configured)).not.toBe(getConfigSignature(baseConfig));
+  });
 
   it("converts port string to number", () => {
     expect(buildConfigPayload(form, "").port).toBe(1080);

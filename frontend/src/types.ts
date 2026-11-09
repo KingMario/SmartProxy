@@ -21,6 +21,7 @@ export type ConfigResponse = {
   gfwProxy: string;
   gfwlistUrl: string;
   httpProxyIface: string;
+  httpProxyDNS?: string[];
   port: number;
   verboseLog: boolean;
 };
@@ -42,6 +43,7 @@ export type FormState = {
   gfwIface: string;
   gfwlistUrl: string;
   httpProxyIface: string;
+  httpProxyDNS: string;
   port: string;
   verboseLog: boolean;
 };
@@ -49,6 +51,7 @@ export type FormState = {
 export type StatusResponse = {
   httpProxyIface?: string;
   httpProxyPort?: number;
+  directHttpProxyPort?: number;
   logs?: string[];
   port?: number;
   running: boolean;

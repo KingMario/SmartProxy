@@ -125,6 +125,12 @@ Installer script location:
     *   These settings are stored as `defaultDNS` / `defaultDNSBootstrap`, `gfwDNS` / `gfwDNSBootstrap`, and `companyDNS` / `companyDNSBootstrap` in the user configuration. Bootstrap values are arrays of IP address strings.
     *   DoH resolves IPv4 addresses, matching the current interface address selection. Results are cached up to their DNS TTL (at most five minutes), separately for each interface address, endpoint, and bootstrap configuration. Saving settings or receiving a network change clears the cache. A failed configured DNS query reports an error without silently using another route's DNS.
 
+6.  **Choose an HTTP proxy entry point**:
+    *   **17890 — Routing HTTP proxy**, shown under General Settings, follows the same Default, GFW, Company, bypass, and upstream proxy rules as SOCKS5.
+    *   **17891 — Fixed-interface HTTP proxy** uses the interface selected in its own panel (`httpProxyIface`), for both HTTP and HTTPS CONNECT. Domain rules, the GFW upstream proxy, route-specific DoH settings, and VPN local-redirect compatibility are not used. New requests use the current saved interface; existing tunnels keep their connection.
+    *   For local access to Feishu or JD Reading, select WLAN / Wi-Fi and point that app's HTTP proxy to `127.0.0.1:17891`. DNS server IPs default to the selected adapter's Windows configuration or its scoped macOS resolver. Optional `httpProxyDNS` is an array of explicit IPv4 DNS server addresses. DNS uses that adapter's source IPv4 address and socket binding, trying TCP first and UDP as a fallback against the same server. There is no fallback to the system resolver, another interface, or public DNS servers. Missing DNS settings or an unavailable interface produce HTTP 502 errors and logs.
+    *   The fixed-interface path currently resolves and connects over IPv4. Both HTTP proxies run for the application's lifetime, independently of the SOCKS start/stop control.
+
 ## 📝 License
 
 Copyright © 2026-2027 MarioStudio.
