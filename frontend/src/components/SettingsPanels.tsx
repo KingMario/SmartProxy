@@ -345,7 +345,8 @@ export function HttpProxyPanel({
           <small className="field-hint" id="http-proxy-dns-hint">
             Leave blank to use this interface's DNS servers. Or enter IPv4 DNS
             addresses separated by commas. DNS and connection failures are reported
-            without switching to another interface. Choose WLAN / Wi-Fi for local access.
+            without switching to another interface. For local access, select your
+            Ethernet or Wi-Fi interface.
           </small>
         </div>
       </div>
