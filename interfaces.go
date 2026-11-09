@@ -1,12 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os/exec"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -91,19 +91,10 @@ func (p *ProxyServer) AutoDetectGFWIface() string {
 
 		p.addLog(fmt.Sprintf("Testing interface %s (%s)...", iface.Name, ip))
 
-		dialer := &net.Dialer{
-			Timeout: 3 * time.Second,
-			Control: func(network, address string, c syscall.RawConn) error {
-				return c.Control(func(fd uintptr) {
-					bindSocketToInterface(fd, network, idx)
-				})
-			},
-		}
-
-		conn, err := dialer.Dial("tcp", "www.google.com:80")
+		conn, err := dialInterfaceProbe("www.google.com:80", idx, ip)
 		if err == nil {
+			p.logInterfaceProbeSuccess(iface.Name, "GFW", conn)
 			conn.Close()
-			p.addLog(fmt.Sprintf("Interface %s is working for GFW", iface.Name))
 			return iface.Name
 		}
 		p.addLog(fmt.Sprintf("Interface %s failed: %v", iface.Name, err))
@@ -141,25 +132,16 @@ func (p *ProxyServer) AutoDetectCompanyIface() string {
 
 		p.addLog(fmt.Sprintf("Testing interface %s (%s) for company domain %s...", iface.Name, ip, targetDomain))
 
-		dialer := &net.Dialer{
-			Timeout: 3 * time.Second,
-			Control: func(network, address string, c syscall.RawConn) error {
-				return c.Control(func(fd uintptr) {
-					bindSocketToInterface(fd, network, idx)
-				})
-			},
-		}
-
-		conn, err := dialer.Dial("tcp", net.JoinHostPort(targetDomain, "80"))
+		conn, err := dialInterfaceProbe(net.JoinHostPort(targetDomain, "80"), idx, ip)
 		if err == nil {
+			p.logInterfaceProbeSuccess(iface.Name, "Company VPN", conn)
 			conn.Close()
-			p.addLog(fmt.Sprintf("Interface %s is working for Company VPN", iface.Name))
 			return iface.Name
 		}
-		conn, err = dialer.Dial("tcp", net.JoinHostPort(targetDomain, "443"))
+		conn, err = dialInterfaceProbe(net.JoinHostPort(targetDomain, "443"), idx, ip)
 		if err == nil {
+			p.logInterfaceProbeSuccess(iface.Name, "Company VPN", conn)
 			conn.Close()
-			p.addLog(fmt.Sprintf("Interface %s is working for Company VPN", iface.Name))
 			return iface.Name
 		}
 		p.addLog(fmt.Sprintf("Interface %s failed for %s: %v", iface.Name, targetDomain, err))
@@ -167,4 +149,22 @@ func (p *ProxyServer) AutoDetectCompanyIface() string {
 
 	p.addLog(fmt.Sprintf("No interface can reach %s, setting Company Interface to None", targetDomain))
 	return ""
+}
+
+func dialInterfaceProbe(target string, index int, ip string) (net.Conn, error) {
+	info := interfaceInfo{index: index}
+	// Keep macOS's original address-family selection. Windows probes also need
+	// the IPv4 source address, matching the proxy's existing outbound behavior.
+	if runtime.GOOS == "windows" {
+		info.ip = ip
+	}
+	return dialInterfaceTCP(context.Background(), target, info, 3*time.Second)
+}
+
+func (p *ProxyServer) logInterfaceProbeSuccess(name, purpose string, conn net.Conn) {
+	via := ""
+	if local, ok := conn.LocalAddr().(*net.TCPAddr); runtime.GOOS == "windows" && ok && local.IP.IsLoopback() {
+		via = " (local VPN redirect; selected interface verified against Windows route)"
+	}
+	p.addLog(fmt.Sprintf("Interface %s is working for %s%s", name, purpose, via))
 }

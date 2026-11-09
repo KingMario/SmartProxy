@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -35,11 +34,7 @@ func newGFWListHTTPClient(interfaceName string) (*http.Client, bool, error) {
 		if useLocalIP && localIP != "" {
 			dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(localIP)}
 		}
-		dialer.Control = func(network, address string, connection syscall.RawConn) error {
-			return connection.Control(func(fileDescriptor uintptr) {
-				bindSocketToInterface(fileDescriptor, network, interfaceIndex)
-			})
-		}
+		dialer.Control = interfaceSocketControl(interfaceIndex)
 		return dialer
 	}
 

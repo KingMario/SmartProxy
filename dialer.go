@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -81,22 +80,7 @@ func dialWithInterface(targetAddr string, info interfaceInfo) (net.Conn, error) 
 }
 
 func dialWithInterfaceContext(ctx context.Context, targetAddr string, info interfaceInfo) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: 15 * time.Second}
-	if info.ip != "" {
-		dialer.LocalAddr = &net.TCPAddr{IP: net.ParseIP(info.ip)}
-	}
-	if info.index != 0 {
-		dialer.Control = func(network, address string, c syscall.RawConn) error {
-			var bindErr error
-			if err := c.Control(func(fd uintptr) {
-				bindErr = bindSocketToInterface(fd, network, info.index)
-			}); err != nil {
-				return err
-			}
-			return bindErr
-		}
-	}
-	return dialer.DialContext(ctx, "tcp", targetAddr)
+	return dialInterfaceTCP(ctx, targetAddr, info, 15*time.Second)
 }
 
 func (p *ProxyServer) dialResolved(ctx context.Context, targetAddr string, route outboundRoute, info interfaceInfo, verbose bool) (net.Conn, error) {
