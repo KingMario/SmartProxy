@@ -225,12 +225,42 @@ func TestInterfaceDNSBindsUDPAndTCPAndDoesNotFallback(t *testing.T) {
 }
 
 func TestScopedDNSOnlyUsesSelectedMacInterface(t *testing.T) {
-	input := "resolver #1\n nameserver[0] : 8.8.8.8\nresolver #2\n nameserver[0] : 192.168.1.1\n if_index : 5 (en0)\nresolver #3\n nameserver[0] : 1.1.1.1\n if_index : 9 (utun0)\nresolver #4\n nameserver[0] : 192.168.1.1\n nameserver[1] : 2001:db8::1\n if_index : 5 (en0)\n"
+	input := `DNS configuration
+resolver #1
+ nameserver[0] : 8.8.8.8
+resolver #2
+ domain : corp.example
+ nameserver[0] : 10.0.0.53
+ if_index : 5 (en0)
+ flags : Supplemental, Request A records
+DNS configuration (for scoped queries)
+resolver #1
+ nameserver[0] : 192.168.1.1
+ nameserver[1] : 2001:db8::1
+ if_index : 5 (en0)
+ flags : Scoped, Request A records
+resolver #2
+ nameserver[0] : 1.1.1.1
+ if_index : 9 (utun0)
+ flags : Scoped, Request A records
+resolver #3
+ nameserver[0] : 192.168.1.1
+ if_index : 5 (en0)
+ flags : Scoped, Request A records
+DNS configuration (for service-specific queries)
+resolver #1
+ nameserver[0] : 10.0.0.54
+ if_index : 5 (en0)
+ flags : Service-specific, Request A records
+`
 	if got := scopedDNSServers(input, 5); !reflect.DeepEqual(got, []string{"192.168.1.1"}) {
 		t.Fatalf("wrong interface DNS %v", got)
 	}
 	if got := scopedDNSServers(input, 10); len(got) != 0 {
 		t.Fatalf("unexpected global DNS fallback %v", got)
+	}
+	if got := scopedDNSServers("DNS configuration\nresolver #1\n nameserver[0] : 8.8.8.8\n if_index : 5 (en0)\n", 5); len(got) != 0 {
+		t.Fatalf("missing scoped section used global DNS %v", got)
 	}
 }
 

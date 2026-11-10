@@ -6,12 +6,17 @@ import (
 	"strings"
 )
 
-// Only use scutil resolver blocks with a matching if_index; never borrow the
-// global resolver, which may belong to a different VPN.
+// Use the selected interface's scoped resolver section from scutil --dns.
+// Supplemental and service-specific resolvers have separate routing scopes.
 func scopedDNSServers(output string, index int) []string {
+	_, scoped, ok := strings.Cut(output, "DNS configuration (for scoped queries)")
+	if !ok {
+		return nil
+	}
+	scoped, _, _ = strings.Cut(scoped, "DNS configuration (")
 	var result []string
 	seen := map[string]bool{}
-	for _, block := range strings.Split(output, "resolver #") {
+	for _, block := range strings.Split(scoped, "resolver #") {
 		matches := false
 		var servers []string
 		for _, line := range strings.Split(block, "\n") {
